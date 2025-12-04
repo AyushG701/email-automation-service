@@ -1,3 +1,14 @@
+"""
+Email Automation Service - Main Application
+Version 3.0 - Refactored with Orchestrator Pattern
+
+Key Improvements:
+1. Uses NegotiationOrchestrator for unified state management
+2. Proper round counting (info vs price exchanges)
+3. Context-aware intent classification
+4. Clean error handling and logging
+"""
+
 from typing import Union
 from fastapi.encoders import jsonable_encoder
 from fastapi import FastAPI, Body, HTTPException
@@ -17,19 +28,20 @@ from constant.enum import RMQEnum, EMAIL_CLASSIFICATION
 from config import AppConfig
 
 from services.email_classifier import EmailClassifierOpenAI
-from services.conversation import InformationSeeker
 
 from integration.supertruck import SuperTruck
 from integration.load_board import LoadBoard
 
-# from actions.load_offer import LoadOfferAction
-# from actions.load import LoadAction
 from actions.negotiation import NegotiationAction
 
 from api.v1.negotiation import NegotiationController
 import logging
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # ------------------------------
@@ -118,19 +130,37 @@ def remove_none_values(data: dict) -> dict:
     return {k: v for k, v in data.items() if v is not None}
 
 
-# *MAIN PROCESSOR THAT EXECUTES/DETERMINES THE NEXT ACTION
+# =============================================================================
+# MAIN MESSAGE PROCESSOR
+# =============================================================================
+
 async def message_processor(message: aio_pika.IncomingMessage):
-    logger.info("🔥 MESSAGE RECEIVED IN PROCESSOR!")
+    """
+    Main processor that handles incoming email messages.
+
+    Flow:
+    1. If reply (inReplyTo exists) -> Continue existing conversation
+    2. Otherwise -> Classify and route to appropriate handler
+
+    The NegotiationAction now uses the NegotiationOrchestrator for:
+    - Proper round counting (info vs price exchanges)
+    - Context-aware intent classification
+    - Unified state management
+    """
+    logger.info("="*60)
+    logger.info("MESSAGE RECEIVED IN PROCESSOR")
+    logger.info("="*60)
+
     async with message.process():
         try:
-            logger.info("Message is here........")
-            classification = ""
+            # Parse email data
             email_data_decode = message.body.decode()
             email_data = json.loads(email_data_decode)
 
-            # !NEED TO CHANGE FOR DEVELOPMENT PURPOSE ONLY
+            # Store for dev/debug purposes
             received_messages.append(json.loads(email_data_decode))
-            # print(f"Received and processing email: {email_data}")
+
+            # Build params for handlers
             params = {
                 "tenant_id": email_data["tenantId"],
                 "to": email_data["to"],
@@ -138,65 +168,76 @@ async def message_processor(message: aio_pika.IncomingMessage):
                 "thread_Id": email_data["threadId"],
                 "body": email_data["body"],
                 "messageId": email_data["messageId"],
-                "inReplyTo": email_data["inReplyTo"],
-                "references": email_data["references"]
+                "inReplyTo": email_data.get("inReplyTo"),
+                "references": email_data.get("references")
             }
-            logger.info(email_data)
-            # * FIND PREV CONVERSATION FROM EMAIL LOGS AND CONTINUE CONVERSATION OR CLASSIFY EMAIL
-            if (email_data["inReplyTo"]):
-                logger.info(f"Continue from reply")
+
+            logger.info(f"From: {email_data.get('from')}")
+            logger.info(f"Subject: {email_data.get('subject', 'N/A')}")
+            logger.info(f"Thread: {email_data.get('threadId')}")
+            logger.info(f"Is Reply: {bool(email_data.get('inReplyTo'))}")
+
+            # FLOW 1: Continue existing conversation (reply)
+            if email_data.get("inReplyTo"):
+                logger.info("Continuing existing conversation (reply)")
                 email_log = await supertruck.find_email_log(
-                    tenant_id=email_data["tenantId"], thread_id=email_data["threadId"])
+                    tenant_id=email_data["tenantId"],
+                    thread_id=email_data["threadId"]
+                )
+                # Use the new orchestrator-based negotiation
                 await negotiation.execute_negotiation(data=params)
+
+            # FLOW 2: New email - classify and route
             else:
-                # * OPENAI EMAIL CLASSIFICATION
-                if not any(email_data.get(key) for key in ["subject"]):
-                    raise ValueError(
-                        "No relevant email content (Subject, Short Preview, or Main Body (Trimmed)) provided.")
-                # information_seeker.ask()
+                logger.info("New email - classifying")
+
+                if not any(email_data.get(key) for key in ["subject", "body"]):
+                    raise ValueError("No email content to classify")
+
+                # Classify the email
                 classifier = EmailClassifierOpenAI()
                 output = classifier.process_email(email_data)
-                # print(f"Email classification output:{output}")
 
                 classification = output["classification"]
-                cleaned_data = remove_none_values(
-                    output["extracted_details"])
-                logger.info(
-                    f"Email data classified & cleaned successfully")
-                # * INTEGRATION ACCORDING TO CLASSIFICATION
+                cleaned_data = remove_none_values(output["extracted_details"])
+
+                logger.info(f"Classification: {classification}")
+                logger.info(f"Extracted fields: {list(cleaned_data.keys())}")
+
+                # Route to appropriate handler
                 actions = {
-                    # EMAIL_CLASSIFICATION.LOAD_NEGOTIATION.value: lambda: loadNegotiation.execute_load_negotiation(data=params),
                     EMAIL_CLASSIFICATION.LOAD_OFFER_NEGOTIATION.value: lambda: negotiation.execute_negotiation(data=params),
                     EMAIL_CLASSIFICATION.LOAD_OFFER.value: lambda: load_board.create_load_offer(
                         tenant_id=email_data["tenantId"], data=cleaned_data),
                     EMAIL_CLASSIFICATION.LOAD.value: lambda: load_board.create_load(
-                        tenant_id=email_data["tenantId"], data=output["extracted_details"]
-                    ),
-                    EMAIL_CLASSIFICATION.BROKER_SETUP.value: lambda: print("Broker setup"),
+                        tenant_id=email_data["tenantId"], data=output["extracted_details"]),
+                    EMAIL_CLASSIFICATION.BROKER_SETUP.value: lambda: logger.info("Broker setup email - requires manual handling"),
                 }
 
                 action = actions.get(
-                    classification, lambda: print("Default classification"))
+                    classification,
+                    lambda: logger.info(f"Unknown classification: {classification}")
+                )
                 await action()
 
+            logger.info("Message processed successfully")
+            logger.info("="*60)
+
         except httpx.HTTPStatusError as e:
-            print("HTTP error:", e)
+            logger.error(f"HTTP error: {e}")
             return e
 
         except ValueError as e:
-            print("Parsing/validation error:", e)
+            logger.error(f"Validation error: {e}")
             return e
-            # raise HTTPException(status_code=400, detail=str(e))
 
         except KeyError as e:
-            print("Missing field error:", e)
+            logger.error(f"Missing field: {e}")
             return e
-            # raise HTTPException(status_code=500, detail=f"Key error: {e}")
 
         except Exception as e:
-            print("Unexpected error:", repr(e))
+            logger.exception(f"Unexpected error: {repr(e)}")
             return e
-            # raise HTTPException(status_code=500, detail=str(e))
 
 
 # !NEED TO CHANGE FOR DEVELOPMENT PURPOSE ONLY

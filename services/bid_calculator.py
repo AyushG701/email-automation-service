@@ -139,35 +139,3 @@ class FreightBidCalculator:
         import math
         return math.ceil(value / round_to) * round_to
 
-
-# # Example usage
-# if __name__ == "__main__":
-#     # Initialize calculator
-#     calc = FreightBidCalculator(cost_per_mile=2.00, default_profit_margin=0.20)
-
-#     # Example from documentation
-#     print("Example: 600 miles, Unknown/Vague location")
-#     result = calc.calculate_bid_custom_multiplier(
-#         loaded_miles=600,
-#         custom_multiplier=1.20
-#     )
-#     print(result)
-
-#     # Standard calculation
-#     print("\nExample: 450 miles, Standard location")
-#     result = calc.calculate_bid(
-#         loaded_miles=450,
-#         location_risk=LocationRisk.STANDARD
-#     )
-#     print(result)
-
-#     # High risk area
-#     print("\nExample: 800 miles, Remote area")
-#     result = calc.calculate_bid(
-#         loaded_miles=800,
-#         location_risk=LocationRisk.HIGH_RISK
-#     )
-#     print(result)
-
-#     # Compare all scenarios
-#     print(calc.compare_scenarios(500))

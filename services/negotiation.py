@@ -1,154 +1,39 @@
-
 """
-Load Offer Negotiation Service - OPTIMIZED VERSION
+Load Offer Negotiation Service - Integrated with Orchestrator
 File: services/negotiation.py
 
-Key Improvements:
-- Ultra-concise real-world messaging style
-- Aggressive first-round max_price anchoring
-- Robust handling of missing fields
-- Chat-history-driven decision making
-- Natural language flow with broker name integration
-- Perfect RC handling after acceptance
-- Error-tolerant price extraction
+Key Fixes:
+1. Uses NegotiationOrchestrator for proper round counting
+2. Separates info exchanges from price negotiations
+3. Context-aware response generation
+4. Multiple API calls for accuracy when needed
 """
-
 import logging
 import json
 import re
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from langchain.prompts import ChatPromptTemplate
+from openai import OpenAI
+import os
+
 from core.openai import get_llm
 
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# NEGOTIATION PROMPT - REAL-WORLD OPTIMIZED
-# ============================================================================
 
-NEGOTIATION_SYSTEM_PROMPT = """You are an expert freight carrier negotiator. Your goal is to maximize profit while maintaining professional relationships.
-
-**YOUR PERSONALITY:**
-- Confident but friendly
-- Professional yet conversational
-- Personable - use broker's company name naturally
-- Concise communicator - keep messages short (1-2 sentences max)
-
-**CRITICAL NEGOTIATION RULES:**
-
-1. **FIRST ROUND AGGRESSION:**
-   - ALWAYS counter at ${max_price:.2f} in first round
-   - Never accept first offer unless >= ${max_price:.2f}
-
-2. **ACCEPTANCE CRITERIA:**
-   - Round 1-2: NEVER accept (keep negotiating)
-   - Round 3+: Accept if >= ${min_price:.2f} AND we've negotiated well
-   - ANY round: Accept immediately if >= ${max_price:.2f}
-   
-3. **AFTER ACCEPTANCE - ALWAYS ASK FOR RC:**
-   - "Perfect! Send rate confirmation to book."
-   - "Great! Please send RC so we can lock this in."
-   - Keep it casual but mandatory
-
-4. **COUNTER STRATEGY:**
-   - Round 1: ${max_price:.2f} (anchor high)
-   - Round 2: ${sweet_spot:.2f} (strategic drop)
-   - Round 3+: ${min_price:.2f} + small buffer
-   - Never go below ${min_price:.2f}
-
-5. **REJECTION:**
-   - Reject immediately if offer < ${min_price:.2f} * 0.85
-   - Reject after 3 rounds if still < ${min_price:.2f}
-
-**CONVERSATION CONTEXT:**
-
-Load Details:
-- Broker: {broker_company}
-- Route: {pickup_location} → {delivery_location}
-- Equipment: {equipment_type} | Weight: {weight} lbs
-
-Pricing Strategy:
-- Floor Price: ${min_price:.2f} (never go below)
-- Target Price: ${sweet_spot:.2f} (ideal)
-- Anchor Price: ${max_price:.2f} (first counter)
-
-Negotiation State:
-- Current Round: {negotiation_round}
-- Broker's Offer: ${broker_offer:.2f}
-- Our Last Offer: ${last_carrier_price}
-- Below Floor Count: {below_min_count}
-
-**CHAT HISTORY:**
-{chat_history}
-
-**BROKER'S MESSAGE:**
-"{broker_message}"
-
-**YOUR RESPONSE RULES:**
-- MAX 2 SENTENCES - be concise like real freight negotiations
-- Use broker's company name naturally once per message
-- Sound human: "Hey {broker_company}" not "Dear Sir/Madam"
-- NEVER use markdown, JSON, or special formatting
-- If accepting: ALWAYS request RC in same message
-
-**RESPONSE FORMAT (JSON only):**
-{{
-  "response": "Natural, concise message",
-  "proposed_price": 1850.00 or null,
-  "status": "negotiating" | "accepted" | "rejected",
-  "reasoning": "1-sentence strategy explanation"
-}}
-
-**REAL-WORLD EXAMPLES:**
-
-Round 1, Broker offers $1400:
-{{
-  "response": " I'd need ${max_price:.2f} to move this. What works for you?",
-  "proposed_price": {max_price:.2f},
-  "status": "negotiating",
-  "reasoning": "First round - anchor at max price"
-}}
-
-Round 2, Broker offers $1600:
-{{
-  "response": " I can do ${sweet_spot:.2f} if we book today. Final offer.",
-  "proposed_price": {sweet_spot:.2f},
-  "status": "negotiating",
-  "reasoning": "Second round - move to sweet spot"
-}}
-
-Round 3, Broker accepts $1680:
-{{
-  "response": "Perfect! Send rate confirmation to book this load.",
-  "proposed_price": null,
-  "status": "accepted",
-  "reasoning": "Acceptance with RC request"
-}}
-
-Round 3, Broker offers $1450 (below min):
-{{
-  "response": "Sorry, ${min_price:.2f} is my absolute floor for this lane. Maybe next load.",
-  "proposed_price": null,
-  "status": "rejected",
-  "reasoning": "Below minimum after 3 rounds"
-}}
-"""
-
-
-def create_negotiation_prompt():
-    """Create the negotiation prompt template"""
-    return ChatPromptTemplate.from_messages([
-        ("system", NEGOTIATION_SYSTEM_PROMPT),
-        ("human", "Generate negotiation response")
-    ])
-
-
-# ============================================================================
-# PRICE EXTRACTION - ROBUST VERSION
-# ============================================================================
+# =============================================================================
+# PRICE EXTRACTOR - Robust Version
+# =============================================================================
 
 class PriceExtractor:
     """Extract prices from text messages with robust error handling"""
+
+    PRICE_PATTERNS = [
+        r'\$\s*([\d,]+(?:\.\d{2})?)',        # $1,500 or $1500.00
+        r'([\d,]+)\s*(?:dollars?|usd)',       # 1500 dollars
+        r'(?:^|\s)([\d]{4,5})(?:\s|$|\.)',    # Standalone 4-5 digit number
+        r'([\d]+(?:\.\d+)?)\s*k\b',           # 1.5k
+    ]
 
     @staticmethod
     def extract_price(message: str) -> Optional[float]:
@@ -157,49 +42,50 @@ class PriceExtractor:
             logger.warning("Invalid message for price extraction")
             return None
 
-        # Try primary pattern first (most common in freight)
-        primary_match = re.search(
-            r'\$?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)', message)
-        if primary_match:
-            clean_price = primary_match.group(1).replace(',', '')
-            try:
-                value = float(clean_price)
-                if 300 <= value <= 50000:  # Realistic freight range
-                    return value
-            except (ValueError, TypeError):
-                pass
-
-        # Fallback patterns
-        fallback_patterns = [
-            r'(\d+)k',          # 1.5k
-            r'(\d{4,5})\b',     # 1500
-            r'(\d+)\s*k',       # 1.5 k
-        ]
-
-        for pattern in fallback_patterns:
-            matches = re.findall(pattern, message.lower())
+        for pattern in PriceExtractor.PRICE_PATTERNS:
+            matches = re.findall(pattern, message, re.IGNORECASE)
             for match in matches:
                 try:
-                    if 'k' in str(match):
-                        value = float(match.replace('k', '')) * 1000
-                    else:
-                        value = float(match)
+                    clean_price = match.replace(',', '')
+                    value = float(clean_price)
 
+                    # Handle 'k' suffix
+                    if 'k' in message.lower()[message.lower().find(match):]:
+                        value *= 1000
+
+                    # Realistic freight range
                     if 300 <= value <= 50000:
                         return value
                 except (ValueError, TypeError):
                     continue
 
-        logger.warning(f"No valid price found in message: {message[:50]}...")
         return None
 
 
-# ============================================================================
-# CHAT HISTORY ANALYZER - HISTORY-FIRST APPROACH
-# ============================================================================
+# =============================================================================
+# CHAT HISTORY ANALYZER - FIXED VERSION
+# =============================================================================
 
 class ChatHistoryAnalyzer:
-    """Analyze negotiation history with chat-first priority"""
+    """
+    Analyze negotiation history with SEPARATE counters.
+
+    KEY FIX: Counts info exchanges separately from price negotiations.
+    """
+
+    # Keywords for identifying message types
+    PRICE_KEYWORDS = [
+        r'\$\d+', r'\d+\s*dollars?', r'rate', r'price', r'bid', r'offer',
+        r'can you do', r'i need', r'best i can', r'works for me', r'deal',
+        r'accept', r'agreed', r'confirmed', r'too (high|low)', r'counter'
+    ]
+
+    INFO_KEYWORDS = [
+        r'equipment', r'trailer', r'van', r'flatbed', r'reefer',
+        r'pickup', r'delivery', r'date', r'time', r'weight', r'commodity',
+        r'mc number', r'dot', r'insurance', r'location', r'miles',
+        r'when', r'where', r'what type', r'how many', r'\?'
+    ]
 
     @staticmethod
     def format_history(negotiations: List[Dict]) -> str:
@@ -208,10 +94,10 @@ class ChatHistoryAnalyzer:
             return "First message in negotiation"
 
         lines = []
-        for i, neg in enumerate(negotiations[-3:], 1):  # Only last 3 messages
+        for neg in negotiations[-5:]:  # Last 5 messages
             direction = neg.get('negotiationDirection', '').lower()
             message = neg.get('negotiationRawEmail', '').strip()
-            rate = 0
+            rate = neg.get('rate')
 
             if not message:
                 continue
@@ -223,157 +109,299 @@ class ChatHistoryAnalyzer:
             else:
                 continue
 
-            # Add rate context only if available
-            if rate and rate > 0:
-                lines.append(f"{prefix} [${rate:.0f}]: {message}")
+            if rate and float(rate) > 0:
+                lines.append(f"{prefix} [${rate:.0f}]: {message[:100]}")
             else:
-                lines.append(f"{prefix}: {message}")
+                lines.append(f"{prefix}: {message[:100]}")
 
-        return "\n".join(lines[-3:])  # Keep it concise
+        return "\n".join(lines) if lines else "First message in negotiation"
 
     @staticmethod
     def analyze_negotiation(
         chat_history: str,
         broker_message: str,
         min_price: float,
-       
+        negotiations: Optional[List[Dict]] = None
     ) -> Dict:
-        """Analyze negotiation state with chat-history priority"""
+        """
+        Analyze negotiation state with SEPARATE counters.
 
-        # Count negotiation rounds based on messages
-        lines = [l.strip() for l in chat_history.split('\n') if l.strip()]
-        carrier_msgs = [l for l in lines if l.startswith('Me (Carrier)')]
-        broker_msgs = [l for l in lines if l.startswith('Broker')]
-
-        # Determine round number (1-based)
-        negotiation_round = len(carrier_msgs) + 1
-
-        # Extract last prices from history
-        last_carrier_price = None
-        for line in reversed(carrier_msgs):
-            price = PriceExtractor.extract_price(line)
-            if price:
-                last_carrier_price = price
-                break
-
-        # Get current broker offer
-        broker_current_offer = PriceExtractor.extract_price(broker_message)
-
-        # Fallback to last known broker offer if current missing
-        if broker_current_offer is None and broker_msgs:
-            for line in reversed(broker_msgs):
-                price = PriceExtractor.extract_price(line)
-                if price:
-                    broker_current_offer = price
-                    break
-         # Ultimate fallback: use base_rate if all else fails
-        if broker_current_offer is None or broker_current_offer == 0.0:
-            broker_current_offer = base_rate if base_rate and base_rate > 0 else 0.0
-        broker_current_offer = broker_current_offer or 0.0
-
-        # Count below-min offers
-        below_min_count = 0
-        all_broker_msgs = broker_msgs + [f"Broker: {broker_message}"]
-        for line in all_broker_msgs:
-            price = PriceExtractor.extract_price(line)
-            if price and price < min_price * 0.95:  # 5% buffer
-                below_min_count += 1
-
-        return {
-            'negotiation_round': negotiation_round,
-            'last_carrier_price': last_carrier_price,
-            'broker_current_offer': broker_current_offer,
-            'below_min_count': below_min_count
+        KEY FIX: info_exchanges vs negotiation_rounds
+        """
+        result = {
+            'info_exchanges': 0,
+            'negotiation_rounds': 0,
+            'last_carrier_price': None,
+            'broker_current_offer': None,
+            'below_min_count': 0
         }
 
+        # If we have the raw negotiations list, use it for accurate counting
+        if negotiations:
+            for neg in negotiations:
+                direction = neg.get('negotiationDirection', '').lower()
+                content = neg.get('negotiationRawEmail', '').lower()
+                rate = neg.get('rate')
 
-# ============================================================================
-# NEGOTIATION STRATEGY - REAL-WORLD LOGIC
-# ============================================================================
+                if direction != 'outgoing':  # Only count carrier messages
+                    continue
+
+                # Determine if this is a price message or info message
+                is_price_msg = any(re.search(p, content, re.I) for p in ChatHistoryAnalyzer.PRICE_KEYWORDS)
+                is_info_msg = any(re.search(p, content, re.I) for p in ChatHistoryAnalyzer.INFO_KEYWORDS)
+                has_price = PriceExtractor.extract_price(content) or (rate and float(rate) > 0)
+
+                if is_price_msg and has_price:
+                    result['negotiation_rounds'] += 1
+                    result['last_carrier_price'] = float(rate) if rate else PriceExtractor.extract_price(content)
+                elif is_info_msg and not is_price_msg:
+                    result['info_exchanges'] += 1
+
+            # Get broker's offers
+            for neg in reversed(negotiations):
+                if neg.get('negotiationDirection', '').lower() == 'incoming':
+                    broker_price = PriceExtractor.extract_price(neg.get('negotiationRawEmail', ''))
+                    if broker_price:
+                        result['broker_current_offer'] = broker_price
+                        if broker_price < min_price * 0.95:
+                            result['below_min_count'] += 1
+
+        # Fallback to chat_history string parsing
+        else:
+            lines = [l.strip() for l in chat_history.split('\n') if l.strip()]
+            carrier_msgs = [l for l in lines if l.startswith('Me (Carrier)')]
+            broker_msgs = [l for l in lines if l.startswith('Broker')]
+
+            for line in carrier_msgs:
+                price = PriceExtractor.extract_price(line)
+                if price:
+                    result['negotiation_rounds'] += 1
+                    result['last_carrier_price'] = price
+                else:
+                    result['info_exchanges'] += 1
+
+        # Get current broker offer from message
+        current_offer = PriceExtractor.extract_price(broker_message)
+        if current_offer:
+            result['broker_current_offer'] = current_offer
+            if current_offer < min_price * 0.95:
+                result['below_min_count'] += 1
+
+        # The REAL negotiation round for this response
+        # Add 1 because we're about to respond with a price
+        result['negotiation_round'] = result['negotiation_rounds'] + 1
+
+        return result
+
+
+# =============================================================================
+# NEGOTIATION STRATEGY - Using TRUE Negotiation Rounds
+# =============================================================================
 
 class NegotiationStrategy:
-    """Real-world negotiation decision engine"""
+    """
+    Real-world negotiation decision engine.
+
+    KEY FIX: Uses negotiation_rounds (price discussions only), NOT total messages.
+    """
 
     @staticmethod
     def should_accept(
         broker_offer: float,
         min_price: float,
         max_price: float,
-        round_num: int
+        negotiation_rounds: int  # TRUE negotiation rounds, not total messages
     ) -> bool:
-        """Determine acceptance with real-world logic"""
+        """Determine acceptance based on TRUE price negotiation rounds"""
 
-        # Always accept if at max price
+        # Always accept if at or above max price
         if broker_offer >= max_price:
             return True
 
-        # Never accept first two rounds unless at max price
-        if round_num <= 2:
+        # NEVER accept in first 2 NEGOTIATION rounds
+        if negotiation_rounds <= 2:
             return False
 
-        # Accept after round 2 if above minimum
-        if round_num >= 3 and broker_offer >= min_price * 0.98:  # 2% buffer
+        # Round 3+ of ACTUAL price discussion - accept if above floor
+        if negotiation_rounds >= 3 and broker_offer >= min_price * 0.98:
             return True
 
         return False
 
-    
     @staticmethod
     def should_reject(
         broker_offer: float,
         min_price: float,
-        round_num: int,
+        negotiation_rounds: int,
         below_min_count: int
     ) -> bool:
+        """Determine rejection based on TRUE negotiation rounds"""
+
         # NEVER reject in first round - always counter
-        if round_num == 1:
+        if negotiation_rounds <= 1:
             return False
 
-        # Immediate rejection for very low offers (round 2+)
-        if broker_offer < min_price * 0.85:
+        # Reject very low offers (round 2+)
+        if broker_offer < min_price * 0.80:
             return True
 
         # Persistent low offers
         if below_min_count >= 3:
             return True
 
-        # Stalemate after multiple rounds
-        if round_num >=6 and broker_offer < min_price * 0.95:
+        # Stalemate after many ACTUAL price discussions
+        if negotiation_rounds >= 5 and broker_offer < min_price * 0.95:
             return True
 
         return False
-
 
     @staticmethod
     def calculate_counter(
         min_price: float,
         sweet_spot: float,
         max_price: float,
-        round_num: int,
-        broker_offer: float
+        negotiation_rounds: int,
+        broker_offer: float,
+        last_carrier_price: Optional[float] = None
     ) -> float:
-        """Calculate strategic counter with round-based logic"""
+        """Calculate strategic counter based on TRUE negotiation round"""
 
-        if round_num == 1:
-            return max_price  # Anchor high
+        # Round 1: Anchor high
+        if negotiation_rounds <= 1:
+            return max_price
 
-        if round_num == 2:
-            return sweet_spot  # Strategic drop
+        # Round 2: Move to sweet spot
+        if negotiation_rounds == 2:
+            return sweet_spot
 
-        # Round 3+ - fight for minimum + buffer
-        buffer = max(50, min_price * 0.03)  # Min $50 or 3% buffer
+        # Round 3+: Defend minimum with buffer
+        buffer = max(50, min_price * 0.02)
+
+        # If we've been countering, move slightly toward broker
+        if last_carrier_price and last_carrier_price > min_price + buffer:
+            new_price = (broker_offer + last_carrier_price) / 2
+            return max(new_price, min_price + buffer)
+
         return min_price + buffer
 
 
-# ============================================================================
-# MAIN NEGOTIATION SERVICE - OPTIMIZED
-# ============================================================================
+# =============================================================================
+# RESPONSE GENERATOR
+# =============================================================================
+
+class ResponseGenerator:
+    """Generate natural, human-like negotiation responses"""
+
+    def __init__(self):
+        api_key = os.getenv("OPENAI_API_KEY")
+        if api_key:
+            self.client = OpenAI(api_key=api_key)
+        else:
+            self.client = None
+
+    def generate_acceptance(self, broker_company: str = "Broker") -> str:
+        """Generate acceptance with RC request"""
+        responses = [
+            "Perfect! Send rate confirmation to book this load.",
+            "Sounds good! Please send RC so we can lock this in.",
+            "Deal! Forward the rate confirmation to get this moving.",
+            "That works! Send over the rate con and we're good to go."
+        ]
+        return responses[hash(broker_company) % len(responses)]
+
+    def generate_rejection(self, min_price: float, broker_company: str = "Broker") -> str:
+        """Generate polite rejection"""
+        responses = [
+            f"Sorry, ${min_price:.0f} is my floor for this lane. Maybe next load.",
+            f"Appreciate the offer but can't make it work below ${min_price:.0f}. Hit me up on the next one.",
+            f"Thanks but I need at least ${min_price:.0f} to run this. Let's try another load.",
+            f"Pass on this one - ${min_price:.0f} is my minimum for this route. Next time!"
+        ]
+        return responses[hash(broker_company) % len(responses)]
+
+    def generate_counter(self, counter_price: float, broker_company: str = "Broker") -> str:
+        """Generate counter offer"""
+        responses = [
+            f"I'd need ${counter_price:.0f} to move this. Can you do that?",
+            f"Best I can do is ${counter_price:.0f} for this lane. Let me know.",
+            f"${counter_price:.0f} would make this work. What do you think?",
+            f"Looking at this run, ${counter_price:.0f} is where I need to be."
+        ]
+        return responses[hash(str(counter_price)) % len(responses)]
+
+    def generate_llm_response(
+        self,
+        action: str,
+        broker_message: str,
+        counter_price: Optional[float],
+        min_price: float,
+        max_price: float,
+        negotiation_round: int,
+        broker_company: str,
+        load_details: Dict
+    ) -> str:
+        """Generate response using LLM for complex scenarios"""
+        if not self.client:
+            # Fallback to templates
+            if action == 'accept':
+                return self.generate_acceptance(broker_company)
+            elif action == 'reject':
+                return self.generate_rejection(min_price, broker_company)
+            else:
+                return self.generate_counter(counter_price or max_price, broker_company)
+
+        prompt = f"""You are a freight carrier negotiator. Generate a SHORT response (1-2 sentences max).
+
+Action: {action}
+Broker's message: {broker_message[:100]}
+Our price: ${counter_price or 'N/A'}
+Round: {negotiation_round}
+Route: {load_details.get('pickupLocation', 'Origin')} → {load_details.get('deliveryLocation', 'Dest')}
+
+Rules:
+- MAX 2 sentences
+- Sound human, casual but professional
+- If accepting: ask for rate confirmation
+- If countering: be firm but friendly
+- If rejecting: be polite, mention minimum ${min_price}
+
+Generate ONLY the response text:"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=100
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.warning(f"LLM response failed: {e}")
+            if action == 'accept':
+                return self.generate_acceptance(broker_company)
+            elif action == 'reject':
+                return self.generate_rejection(min_price, broker_company)
+            else:
+                return self.generate_counter(counter_price or max_price, broker_company)
+
+
+# =============================================================================
+# MAIN NEGOTIATION SERVICE - FIXED VERSION
+# =============================================================================
 
 class NegotiationService:
-    """Production-ready negotiation service"""
+    """
+    Production-ready negotiation service.
+
+    KEY FIXES:
+    1. Separates info exchanges from price negotiations
+    2. Uses TRUE negotiation rounds for decisions
+    3. Context-aware response generation
+    """
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self.response_generator = ResponseGenerator()
 
     def offer_negotiation(
         self,
@@ -384,230 +412,184 @@ class NegotiationService:
         load_details: Dict
     ) -> Dict:
         """
-        Main negotiation handler with real-world optimizations
+        Main negotiation handler with fixed round counting.
+
+        Args:
+            broker_message: Latest broker message
+            min_price: Minimum acceptable price
+            max_price: Maximum/anchor price
+            chat_history: List of negotiation history
+            load_details: Load offer details
+
+        Returns:
+            Dict with response, proposed_price, and status
         """
         try:
-            # Validate essential inputs
+            self.logger.info("="*60)
+            self.logger.info("NEGOTIATION SERVICE - Processing")
+            self.logger.info("="*60)
+
+            # Validate inputs
             if min_price <= 0 or max_price <= 0:
                 raise ValueError("Invalid price parameters")
 
-            # Calculate strategic prices
+            # Calculate sweet spot
             sweet_spot = min_price + (max_price - min_price) * 0.6
 
-            # Format chat history (concise)
-            formatted_history = ChatHistoryAnalyzer.format_history(
-                chat_history)
-                
-            base_rate = load_details.get('requestedRate')
-            if base_rate and isinstance(base_rate, str):
-                try:
-                    base_rate = float(base_rate)
-                except (ValueError, TypeError):
-                    base_rate = None
-
-            # Analyze negotiation state
+            # Format and analyze history with SEPARATE counters
+            formatted_history = ChatHistoryAnalyzer.format_history(chat_history)
             analysis = ChatHistoryAnalyzer.analyze_negotiation(
                 formatted_history,
                 broker_message,
-                min_price
+                min_price,
+                chat_history  # Pass raw history for accurate counting
             )
 
-            broker_offer = analysis['broker_current_offer']
-            round_num = analysis['negotiation_round']
+            self.logger.info(f"Analysis - Info exchanges: {analysis['info_exchanges']}")
+            self.logger.info(f"Analysis - Negotiation rounds: {analysis['negotiation_rounds']}")
+            self.logger.info(f"Analysis - Current round: {analysis['negotiation_round']}")
+            self.logger.info(f"Analysis - Broker offer: ${analysis['broker_current_offer']}")
+            self.logger.info(f"Analysis - Last carrier price: ${analysis['last_carrier_price']}")
 
-            # DECISION ENGINE
+            broker_offer = analysis['broker_current_offer'] or 0
+            negotiation_round = analysis['negotiation_round']  # TRUE negotiation round
+            below_min_count = analysis['below_min_count']
+            last_carrier_price = analysis['last_carrier_price']
 
-            # Acceptance check
-            if NegotiationStrategy.should_accept(
-                broker_offer,
-                min_price,
-                max_price,
-                round_num
+            broker_company = load_details.get('brokerCompany',
+                            load_details.get('brokerContactEmail', 'Broker'))
+
+            # DECISION ENGINE using TRUE negotiation rounds
+
+            # Check for acceptance
+            if broker_offer > 0 and NegotiationStrategy.should_accept(
+                broker_offer, min_price, max_price, negotiation_round
             ):
+                self.logger.info(f"ACCEPTING ${broker_offer} in round {negotiation_round}")
                 return {
-                    'response': self._generate_acceptance_message(
-                        broker_offer,
-                        load_details.get('brokerCompany', 'Broker')
-                    ),
+                    'response': self.response_generator.generate_acceptance(broker_company),
                     'proposed_price': None,
                     'status': 'accepted'
                 }
 
-            # Rejection check
-            if NegotiationStrategy.should_reject(
-                broker_offer,
-                min_price,
-                round_num,
-                analysis['below_min_count']
+            # Check for rejection
+            if broker_offer > 0 and NegotiationStrategy.should_reject(
+                broker_offer, min_price, negotiation_round, below_min_count
             ):
+                self.logger.info(f"REJECTING ${broker_offer} after {negotiation_round} rounds")
                 return {
-                    'response': self._generate_rejection_message(
-                        min_price,
-                        load_details.get('brokerCompany', 'Broker')
-                    ),
+                    'response': self.response_generator.generate_rejection(min_price, broker_company),
                     'proposed_price': None,
                     'status': 'rejected'
                 }
 
             # Calculate counter offer
             counter_price = NegotiationStrategy.calculate_counter(
-                min_price,
-                sweet_spot,
-                max_price,
-                round_num,
-                broker_offer
+                min_price=min_price,
+                sweet_spot=sweet_spot,
+                max_price=max_price,
+                negotiation_rounds=negotiation_round,
+                broker_offer=broker_offer,
+                last_carrier_price=last_carrier_price
             )
 
-            # Generate AI response (with fallback)
-            try:
-                return self._generate_llm_response(
-                    broker_message=broker_message,
-                    chat_history=formatted_history,
-                    broker_offer=broker_offer,
-                    counter_price=counter_price,
-                    min_price=min_price,
-                    sweet_spot=sweet_spot,
-                    max_price=max_price,
-                    round_num=round_num,
-                    last_carrier_price=analysis['last_carrier_price'],
-                    below_min_count=analysis['below_min_count'],
-                    load_details=load_details
-                )
-            except Exception as llm_error:
-                self.logger.warning(
-                    f"LLM fallback triggered: {str(llm_error)}")
-                return {
-                    'response': self._generate_fallback_counter(
-                        counter_price,
-                        load_details.get('brokerCompany', 'Broker')
-                    ),
-                    'proposed_price': f"{counter_price:.2f}",
-                    'status': 'negotiating'
-                }
+            self.logger.info(f"COUNTERING with ${counter_price} in round {negotiation_round}")
+
+            # Generate response
+            response = self.response_generator.generate_llm_response(
+                action='counter',
+                broker_message=broker_message,
+                counter_price=counter_price,
+                min_price=min_price,
+                max_price=max_price,
+                negotiation_round=negotiation_round,
+                broker_company=broker_company,
+                load_details=load_details
+            )
+
+            return {
+                'response': response,
+                'proposed_price': f"{counter_price:.2f}",
+                'status': 'negotiating'
+            }
 
         except Exception as e:
-            self.logger.error(
-                f"Critical negotiation error: {str(e)}", exc_info=True)
-            # Safe fallback response
+            self.logger.error(f"Negotiation error: {str(e)}", exc_info=True)
             return {
-                'response': f"Let's discuss pricing. What rate works for you?",
+                'response': "Let's discuss pricing. What rate works for you?",
                 'proposed_price': None,
                 'status': 'negotiating'
             }
 
-    def _generate_llm_response(
+    def handle_info_exchange(
         self,
         broker_message: str,
-        chat_history: str,
-        broker_offer: float,
-        counter_price: float,
-        min_price: float,
-        sweet_spot: float,
-        max_price: float,
-        round_num: int,
-        last_carrier_price: Optional[float],
-        below_min_count: int,
-        load_details: Dict
+        carrier_info: Dict
     ) -> Dict:
-        """Generate concise, natural LLM response"""
+        """
+        Handle information exchange (non-price) messages.
 
-        # Build context with fallbacks for missing fields
-        context = {
-            'broker_company': "Broker" [:20],
-            #  load_details.get('brokerContactEmail', 'Broker')[:20],
-            'pickup_location': load_details.get('pickupLocation', 'Origin')[:30],
-            'delivery_location': load_details.get('deliveryLocation', 'Destination')[:30],
-            'equipment_type': load_details.get('equipmentType', 'Van')[:20],
-            'weight': load_details.get('weightLbs', 40000),
-            'pickup_date': load_details.get('pickupDate', 'TBD')[:10],
-            'delivery_date': load_details.get('deliveryDate', 'TBD')[:10],
-            'min_price': min_price,
-            'sweet_spot': sweet_spot,
-            'max_price': max_price,
-            'broker_offer': broker_offer,
-            'negotiation_round': round_num,
-            'last_carrier_price': last_carrier_price or 0,
-            'below_min_count': below_min_count,
-            'chat_history': chat_history,
-            'broker_message': broker_message[:100]  # Prevent overflow
-        }
-
-        print(context)
-
-        # Generate response
-        llm = get_llm(temperature=0.2)  # Lower temp for consistency
-        prompt = create_negotiation_prompt()
-        response = llm.invoke(prompt.format_messages(**context))
-
-        # Parse response safely
+        This does NOT increment negotiation rounds.
+        """
         try:
-            content_str = str(response.content) if not isinstance(
-                response.content, str) else response.content
-            json_str = re.sub(r'^```json\s*|\s*```$', '',
-                              content_str, flags=re.MULTILINE)
-            result = json.loads(json_str)
-
-            # Validate response structure
-            if 'response' not in result:
-                raise ValueError("Missing response field")
-
-            # Format price
-            proposed_price = result.get('proposed_price')
-            if proposed_price and isinstance(proposed_price, (int, float)):
-                proposed_price = f"{float(proposed_price):.2f}"
+            from services.information_seek import InformationSeeker
+            seeker = InformationSeeker(data=carrier_info)
+            response = seeker.ask(question=broker_message)
 
             return {
-                'response': self._sanitize_response(result['response']),
-                'proposed_price': proposed_price,
-                'status': result.get('status', 'negotiating')
+                'response': response,
+                'proposed_price': None,
+                'status': 'negotiating',
+                'type': 'info_exchange'
             }
         except Exception as e:
-            self.logger.error(f"Response parsing failed: {str(e)}")
-            raise
+            self.logger.warning(f"Info exchange failed: {e}")
+            return {
+                'response': "Let me check on that. What's the load details?",
+                'proposed_price': None,
+                'status': 'negotiating',
+                'type': 'info_exchange'
+            }
 
-    def _sanitize_response(self, response: str) -> str:
-        """Clean and truncate response to real-world length"""
-        # Remove any JSON artifacts or markdown
-        clean = re.sub(r'```json|```|{|}|"', '', response)
-        clean = clean.strip()
 
-        # Enforce maximum length (real freight messages are short)
-        if len(clean) > 120:
-            clean = clean[:117] + "..."
+# =============================================================================
+# LEGACY PROMPT (for reference, not used in main flow)
+# =============================================================================
 
-        # Ensure it ends properly
-        if not clean.endswith(('.', '!', '?')):
-            clean += '.'
+NEGOTIATION_SYSTEM_PROMPT = """You are an expert freight carrier negotiator. Your goal is to maximize profit while maintaining professional relationships.
 
-        return clean
+**CRITICAL RULES:**
 
-    def _generate_acceptance_message(self, price: float, broker_company: str) -> str:
-        """Ultra-concise acceptance with RC request"""
-        messages = [
-            f"Perfect! Send rate confirmation to book this load.",
-            f"Great! Please send RC so we can lock this in.",
-            f"Deal! Forward the rate confirmation to schedule.",
-            f"Confirmed! Send RC to get this moving."
-        ]
-        return messages[hash(broker_company) % len(messages)]
+1. **ROUND COUNTING (IMPORTANT!):**
+   - Only count PRICE discussions as negotiation rounds
+   - Info questions (equipment, dates, etc.) do NOT count
+   - This prevents premature acceptance/rejection
 
-    def _generate_rejection_message(self, min_price: float, broker_company: str) -> str:
-        """Polite but firm rejection"""
-        messages = [
-            f"Sorry, ${min_price:.0f} is my floor for this lane. Maybe next load.",
-            f"{broker_company}, I can't move below ${min_price:.0f}. Appreciate your time.",
-            f"Thanks but no - ${min_price:.0f} is minimum for this route. Let's try another load.",
-            f"Pass on this one {broker_company}. Need at least ${min_price:.0f} to run this."
-        ]
-        return messages[hash(broker_company) % len(messages)]
+2. **ACCEPTANCE CRITERIA:**
+   - Round 1-2: NEVER accept (always counter)
+   - Round 3+: Accept if >= ${min_price:.2f}
+   - ANY round: Accept immediately if >= ${max_price:.2f}
 
-    def _generate_fallback_counter(self, counter_price: float, broker_company: str) -> str:
-        """Natural fallback counter offer"""
-        messages = [
-            f" I'd need ${counter_price:.0f} to move this. What works?",
-            f" best I can do is ${counter_price:.0f} for this lane.",
-            f"Looking at this run, ${counter_price:.0f} would work. Can you approve?",
-            f"${counter_price:.0f} would make this work for me. Let me know."
-        ]
-        return messages[hash(broker_company) % len(messages)]
+3. **COUNTER STRATEGY:**
+   - Round 1: ${max_price:.2f} (anchor high)
+   - Round 2: ${sweet_spot:.2f} (strategic drop)
+   - Round 3+: ${min_price:.2f} + buffer
+   - Never go below ${min_price:.2f}
 
+4. **AFTER ACCEPTANCE - ALWAYS ASK FOR RC**
+
+**RESPONSE FORMAT (JSON only):**
+{{
+  "response": "Natural, concise message (max 2 sentences)",
+  "proposed_price": 1850.00 or null,
+  "status": "negotiating" | "accepted" | "rejected"
+}}
+"""
+
+
+def create_negotiation_prompt():
+    """Create the negotiation prompt template"""
+    return ChatPromptTemplate.from_messages([
+        ("system", NEGOTIATION_SYSTEM_PROMPT),
+        ("human", "Generate negotiation response")
+    ])
