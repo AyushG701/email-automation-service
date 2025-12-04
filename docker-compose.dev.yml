@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  negotiation-agent:
+    container_name: email-automation-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      REDIS_HOST: services.supertruck.ai
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      RABBITMQ_HOST: services.supertruck.ai
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME:
+      RABBITMQ_PASSWORD:
+      RABBITMQ_QUEUE: email_ingestion_queue
+    ports:
+      - "7153:7153"
+    volumes:
+      - .:/app   # <--- LIVE RELOAD (no rebuild needed)
+    restart: unless-stopped
