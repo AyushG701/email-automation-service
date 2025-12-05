@@ -1,64 +1,58 @@
 these are the two issues 
 
-
-2025-12-05 10:09:38,094 - main - INFO - Message processed successfully
-2025-12-05 10:09:38,094 - main - INFO - ============================================================
-2025-12-05 10:09:38,095 - core.rabbitmq - INFO - ✅ Message processed successfully
-2025-12-05 10:10:12,615 - httpx - INFO - HTTP Request: GET https://services.supertruck.ai/load-board/api/v1/load-offer/f1d1e505-288e-4eee-8281-c0537d62b98d "HTTP/1.1 200 OK"
-2025-12-05 10:10:12,620 - api.v1.negotiation - INFO - Processing broker response
-2025-12-05 10:10:12,620 - api.v1.negotiation - INFO - {'broker_message': 'what is your mc brother?', 'load_offer': {'id': 'f1d1e505-288e-4eee-8281-c0537d62b98d', 'createdAt': '2025-12-02T06:52:40.832Z', 'updatedAt': '2025-12-02T06:52:40.832Z', 'deletedAt': None, 'brokerId': None, 'brokerCompany': None, 'brokerContactEmail': 'aayush.advikai@gmail.com', 'equipmentType': None, 'pickupLocation': None, 'deliveryLocation': None, 'pickupDate': None, 'deliveryDate': None, 'weightLbs': None, 'additionalInstructions': 'None + None', 'requestedRate': None, 'isExpired': False, 'loadOfferKey': '1aebeab9a5ae', 'offerEmail': 'what is your mc brother?', 'loadConfidentialScore': 15, 'loadConfidentialityStatus': 'draft', 'status': 'draft'}}
-2025-12-05 10:10:14,623 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
-{'message': 'success', 'path': '/api/v1/carrier/get-by-email/400dyforever@gmail.com', 'timestamp': '2025-12-05 10:09:32', 'data': {'id': '41a0eae5-98d1-4db8-ad0c-6833393a2ad4', 'createdAt': '2025-06-01T07:53:55.867Z', 'updatedAt': '2025-07-10T13:07:06.675Z', 'deletedAt': None, 'companyType': 'owner_operator', 'carrierAuthorityId': '97016e84-361a-41df-8de7-fed805f9114f', 'isMCVerified': True, 'isDOTVerified': True, 'isEINVerified': False, 'isVerified': True, 'userId': '8be0c450-04e7-4cde-a2ac-1713b4005232', 'driverTouch': False, 'isOnboarded': True, 'isOnboardingDocumentUploadComplete': False, 'isAiAssistantSetupComplete': True, 'accountantName': '', 'accountantEmail': 'sallyshresttha12345@gmail.com', 'accountPhone': '9817963010', 'accountantExtension': '', 'isAccountInformationAdded': False, 'workingHours': '24', 'voidCheque': 'string', 'favoriteLanesFromCity': ['string'], 'favoriteLanesToCity': ['string'], 'carrierAuthority': {'id': '97016e84-361a-41df-8de7-fed805f9114f', 'createdAt': '2025-06-01T07:53:55.867Z', 'updatedAt': '2025-07-10T13:07:06.678Z', 'deletedAt': None, 'companyName': 'SuperTruck Logistics, Inc', 'companyLogo': 'https://services.supertruck.ai/uploads/company_logo/company_logo-1751186023106-934252902.png', 'mcNumber': 'MC10101', 'dotNumber': 'DOT20101', 'authorityAddress': 'Dharan, Nepal', 'companyPhoneNumber': '+1-123-456-1001', 'companyEmail': '400dyforever@gmail.com', 'companyEIN': None, 'isHazmatCertified': None}, 'trucks': [{'id': '7a7a9ac6-6c68-4430-bf4c-0bac62b2f083', 'createdAt': '2025-07-24T09:29:48.546Z', 'updatedAt': '2025-09-24T12:48:48.566Z', 'deletedAt': None, 'truckVin': '3AKJHPDV9LSLH0564', 'weeklyTruckFinanceCost': 112, 'weeklyInsuranceCost': 0, 'truckPhotoPathUrl': 'https://services.supertruck.ai/uploads/truck/truck_photo-1753349256640-559930485.jpg', 'truckNumber': 'dsds', 'licensePlateNo': '123sd', 'registeredState': 'AK', 'year': 2025, 'maxWeight': '110', 'type': 'tractor', 'milesPerGallon': '110', 'defaultParkingLocationId': 'b0638f4b-648e-44e9-8b2a-be82bf74a39b', 'model': 'sddsd', 'truckPowerType': 'dsd', 'preferredCommodity': ['mobile_homes'], 'specialCertifications': [], 'isTruckAvailable': True, 'totalRevenue': 0, 'totalDelivery': 0, 'carrierId': '41a0eae5-98d1-4db8-ad0c-6833393a2ad4', 'trailerId': None, 'primaryDriverId': '6bc35450-1856-4e6e-b0cc-9d43a316a8a5', 'secondaryDriverId': '16d4649f-fa40-453b-81e7-5931f2c35be0', 'eldId': None, 'fuelCardId': '38f3a118-b342-4ffb-8083-b188c56f5717'}, {'id': 'd20b8f54-bf4e-4505-a450-488b8757b7c9', 'createdAt': '2025-07-04T08:23:50.732Z', 'updatedAt': '2025-09-24T12:48:48.586Z', 'deletedAt': None, 'truckVin': '3AKJHHDR6PSNK7597', 'weeklyTruckFinanceCost': 0, 'weeklyInsuranceCost': 0, 'truckPhotoPathUrl': 'https://services.supertruck.ai/uploads/truck/truck_photo-1751617204537-272556863.jpeg', 'truckNumber': 'TRK-001', 'licensePlateNo': 'TX-54321', 'registeredState': 'TX', 'year': 2025, 'maxWeight': '80000', 'type': 'van', 'milesPerGallon': '7.5', 'defaultParkingLocationId': 'fad0d468-2287-47ec-a2ab-982f225deb4e', 'model': ' Freightliner Cascadia', 'truckPowerType': 'Diesel', 'preferredCommodity': ['general_freight', 'metal_sheets_coils_rolls', 'household_goods'], 'specialCertifications': [], 'isTruckAvailable': True, 'totalRevenue': 0, 'totalDelivery': 0, 'carrierId': '41a0eae5-98d1-4db8-ad0c-6833393a2ad4', 'trailerId': '83120992-4967-4c91-b8ab-1a989920ebe1', 'primaryDriverId': '88241a94-b75d-4747-955b-302fc670cb2c', 'secondaryDriverId': '890958ed-fa82-4c66-92ba-270f3fe445b0', 'eldId': None, 'fuelCardId': '00d2d17d-d73a-4e5d-a9fc-6da21177b1f4'}, {'id': 'a0ef3b2b-eb07-43ca-95de-390a6006021c', 'createdAt': '2025-07-04T08:31:45.052Z', 'updatedAt': '2025-11-09T10:31:37.794Z', 'deletedAt': None, 'truckVin': '5YJ3E1EA9LF123456', 'weeklyTruckFinanceCost': None, 'weeklyInsuranceCost': None, 'truckPhotoPathUrl': 'https://services.supertruck.ai/uploads/truck/truck_photo-1751617923523-484380810.jpg', 'truckNumber': 'EV-TRK-009', 'licensePlateNo': ' CA-99876', 'registeredState': 'CA', 'year': 2024, 'maxWeight': '76000.00', 'type': 'other', 'milesPerGallon': '1', 'defaultParkingLocationId': '5ea73dc1-9355-4dd6-a288-b9a49dde7b90', 'model': ' Tesla Semi', 'truckPowerType': 'Electric', 'preferredCommodity': ['refrigerated_food'], 'specialCertifications': [], 'isTruckAvailable': True, 'totalRevenue': 0, 'totalDelivery': 0, 'carrierId': '41a0eae5-98d1-4db8-ad0c-6833393a2ad4', 'trailerId': None, 'primaryDriverId': '890958ed-fa82-4c66-92ba-270f3fe445b0', 'secondaryDriverId': None, 'eldId': None, 'fuelCardId': None}, {'id': 'e2e47472-50ef-46c3-97d2-3e374ab697ae', 'createdAt': '2025-07-03T09:49:55.029Z', 'updatedAt': '2025-11-14T11:59:24.079Z', 'deletedAt': None, 'truckVin': '3AKJHPDV3LSLF0004', 'weeklyTruckFinanceCost': 0, 'weeklyInsuranceCost': 0, 'truckPhotoPathUrl': 'https://services.supertruck.ai/uploads/truck/truck_photo-1751536153302-319248264.png', 'truckNumber': '4094563', 'licensePlateNo': '56325478', 'registeredState': 'AK', 'year': 1985, 'maxWeight': '403', 'type': 'tractor', 'milesPerGallon': '351', 'defaultParkingLocationId': '7b812468-a087-45c5-a3be-fe71405d3243', 'model': 'Autem ', 'truckPowerType': 'Voluptatem ', 'preferredCommodity': ['general_freight'], 'specialCertifications': [], 'isTruckAvailable': True, 'totalRevenue': 0, 'totalDelivery': 0, 'carrierId': '41a0eae5-98d1-4db8-ad0c-6833393a2ad4', 'trailerId': '4270f184-185b-4a84-8b4e-57c112cc117a', 'primaryDriverId': 'e533615d-5f94-4a40-8472-e52cfc22e961', 'secondaryDriverId': None, 'eldId': 'cc1e64bd-7ac0-4cc2-b9dc-0033e4572749', 'fuelCardId': 'd07a5a77-623a-41d3-9812-1a6db12d6b9f'}, {'id': '4838f67e-53b8-4835-ac4a-d468473dfc8f', 'createdAt': '2025-07-06T08:28:58.439Z', 'updatedAt': '2025-11-25T04:56:41.698Z', 'deletedAt': None, 'truckVin': 'HUIY15438AWQE4277', 'weeklyTruckFinanceCost': None, 'weeklyInsuranceCost': None, 'truckPhotoPathUrl': 'https://services.supertruck.ai/uploads/truck/truck_photo-1751790446905-38730643.jpeg', 'truckNumber': 'vb0024', 'licensePlateNo': '12KUTY', 'registeredState': 'AL', 'year': 1987, 'maxWeight': '2545.07', 'type': 'tractor', 'milesPerGallon': '7.78', 'defaultParkingLocationId': '81910488-923f-4c7c-b21f-a2acc079858e', 'model': 'Light', 'truckPowerType': 'Light', 'preferredCommodity': ['mobile_homes', 'building_material', 'machinery_large_objects'], 'specialCertifications': [], 'isTruckAvailable': True, 'totalRevenue': 0, 'totalDelivery': 0, 'carrierId': '41a0eae5-98d1-4db8-ad0c-6833393a2ad4', 'trailerId': '99328cd1-1c65-47ca-8f3d-a88d69925ebd', 'primaryDriverId': None, 'secondaryDriverId': None, 'eldId': None, 'fuelCardId': None}, {'id': '972d76f9-7e57-400c-969c-40a9584282e4', 'createdAt': '2025-09-24T12:48:48.609Z', 'updatedAt': '2025-11-25T04:56:41.717Z', 'deletedAt': None, 'truckVin': '12345678912345678', 'weeklyTruckFinanceCost': 122, 'weeklyInsuranceCost': 212, 'truckPhotoPathUrl': 'https://services.supertruck.ai/uploads/truck/truck_photo-1758718053477-510285238.png', 'truckNumber': '212121212', 'licensePlateNo': '12121212', 'registeredState': 'AK', 'year': 2025, 'maxWeight': '1234', 'type': 'tractor', 'milesPerGallon': '12', 'defaultParkingLocationId': '658faf88-1053-4837-bd55-d496069d4b95', 'model': '21212', 'truckPowerType': 'gfgfg', 'preferredCommodity': ['building_material'], 'specialCertifications': [], 'isTruckAvailable': True, 'totalRevenue': 0, 'totalDelivery': 0, 'carrierId': '41a0eae5-98d1-4db8-ad0c-6833393a2ad4', 'trailerId': 'eb1452ca-3da8-4205-a90d-9f0e5a01ee5c', 'primaryDriverId': 'edacfa15-92ff-4ac7-b2b0-d69d6aa18ddb', 'secondaryDriverId': '6bc35450-1856-4e6e-b0cc-9d43a316a8a5', 'eldId': 'b8f76334-f116-40be-8609-60ef0a7cb9c8', 'fuelCardId': 'f367ca61-e632-4479-91b3-5552fb73cf58'}]}}
-{'isAcceptedByBroker': True, 'status': 'accepted'}
-2025-12-05 10:10:14 [info     ] Extracted information          count=0 fields=[]
-2025-12-05 10:10:14,707 - api.v1.negotiation - WARNING - No information extracted from broker message
-2025-12-05 10:10:14,725 - api.v1.negotiation - INFO - Load info checked for negotiation readiness extraction_successful=False fields_extracted=[] extracted_values={} updated_load_offer={'id': 'f1d1e505-288e-4eee-8281-c0537d62b98d', 'createdAt': '2025-12-02T06:52:40.832Z', 'updatedAt': '2025-12-02T06:52:40.832Z', 'deletedAt': None, 'brokerId': None, 'brokerCompany': None, 'brokerContactEmail': 'aayush.advikai@gmail.com', 'equipmentType': None, 'pickupLocation': None, 'deliveryLocation': None, 'pickupDate': None, 'deliveryDate': None, 'weightLbs': None, 'additionalInstructions': 'None + None', 'requestedRate': None, 'isExpired': False, 'loadOfferKey': '1aebeab9a5ae', 'offerEmail': 'what is your mc brother?', 'loadConfidentialScore': 15, 'loadConfidentialityStatus': 'draft', 'status': 'draft'} still_missing_critical_fields=[] can_proceed_to_negotiation=False message='Thank you for your interest. To proceed, could you please provide more details about the load, such as pickup/delivery locations, dates, and weight?'
-2025-12-05 10:10:14,733 - integration.geo_code - ERROR - Origin geocoding failed
-2025-12-05 10:10:14,733 - api.v1.negotiation - INFO - Distance calculated
-2025-12-05 10:10:14,734 - api.v1.negotiation - WARNING - Validation error: Could not calculate distance. Please check pickup and delivery locations.
-INFO:     172.23.0.1:49878 - "POST /api/v1/negotiate HTTP/1.1" 400 Bad Request   /// like can you cheeck what exactly happened
-
-
-2025-12-05 10:31:32,025 - actions.negotiation - INFO - what is your mc carrier?...
-2025-12-05 10:31:32,025 - actions.negotiation - INFO - ============================================================
-2025-12-05 10:31:32,025 - actions.negotiation - INFO - Finding carrier...
-2025-12-05 10:31:32,141 - httpx - INFO - HTTP Request: GET https://services.supertruck.ai/api/v1/carrier/get-by-email/400dyforever@gmail.com "HTTP/1.1 200 OK"
-2025-12-05 10:31:32,143 - actions.negotiation - INFO - Carrier found: 41a0eae5-98d1-4db8-ad0c-6833393a2ad4
-2025-12-05 10:31:32,143 - actions.negotiation - INFO - Searching for bid...
-2025-12-05 10:31:32,218 - httpx - INFO - HTTP Request: GET https://services.supertruck.ai/api/v1/bids?carrierId=41a0eae5-98d1-4db8-ad0c-6833393a2ad4&threadId=19aee0f130f7c657 "HTTP/1.1 200 OK"
-2025-12-05 10:31:32,220 - actions.negotiation - INFO - Found bid: b0242c37-bd02-4d02-94c7-c1f78de9e208
-2025-12-05 10:31:32,220 - actions.negotiation - INFO - Bid found: b0242c37-bd02-4d02-94c7-c1f78de9e208
-2025-12-05 10:31:32,220 - actions.negotiation - INFO - Bid type: auto
-2025-12-05 10:31:32,220 - actions.negotiation - INFO - Base rate: $None
-2025-12-05 10:31:32,318 - httpx - INFO - HTTP Request: GET https://services.supertruck.ai/load-board/api/v1/load-offer/f1d1e505-288e-4eee-8281-c0537d62b98d "HTTP/1.1 200 OK"
-2025-12-05 10:31:32,319 - actions.negotiation - INFO - Load offer found: f1d1e505-288e-4eee-8281-c0537d62b98d
-2025-12-05 10:31:32,319 - actions.negotiation - INFO - Pickup: None
-2025-12-05 10:31:32,319 - actions.negotiation - INFO - Delivery: None
-2025-12-05 10:31:32,319 - actions.negotiation - INFO - Confidence score: 15
-2025-12-05 10:31:32,319 - actions.negotiation - INFO - Conversation history: 1 messages
-2025-12-05 10:31:32,320 - actions.negotiation - INFO - Persisted state from DB:
-2025-12-05 10:31:32,320 - actions.negotiation - INFO -   - negotiationRound: 0
-2025-12-05 10:31:32,320 - actions.negotiation - INFO -   - infoExchangeCount: 0
-2025-12-05 10:31:32,320 - actions.negotiation - INFO -   - conversationState: initial
-2025-12-05 10:31:32,320 - actions.negotiation - INFO -   - lastCarrierPrice: $None
-2025-12-05 10:31:32,320 - actions.negotiation - INFO -   - lastBrokerPrice: $None
-2025-12-05 10:31:32,320 - actions.negotiation - INFO - Auto bid - processing with orchestrator
-2025-12-05 10:31:32,320 - actions.negotiation - ERROR - 
+=======
+2025-12-05 11:03:42,760 - services.negotiation_orchestrator - INFO - NEGOTIATION ORCHESTRATOR - Processing Message
+2025-12-05 11:03:42,760 - services.negotiation_orchestrator - INFO - ============================================================
+2025-12-05 11:03:42,761 - services.negotiation_orchestrator - INFO - Loaded persisted state: rounds=0, info=2
+2025-12-05 11:03:42,761 - services.negotiation_orchestrator - INFO - Negotiation History - Total messages: 5
+2025-12-05 11:03:42,761 - services.negotiation_orchestrator - INFO - Context from DB - State: info_gathering
+2025-12-05 11:03:42,761 - services.negotiation_orchestrator - INFO - Context from DB - Info Exchanges: 2
+2025-12-05 11:03:42,761 - services.negotiation_orchestrator - INFO - Context from DB - Negotiation Rounds: 0
+2025-12-05 11:03:42,761 - services.negotiation_orchestrator - INFO - Context from DB - Last Broker Price: $None
+2025-12-05 11:03:42,762 - services.negotiation_orchestrator - INFO - Context from DB - Last Carrier Price: $None
+2025-12-05 11:03:42,762 - services.negotiation_orchestrator - INFO - Context from DB - Below Min Count: 0
+2025-12-05 11:03:42,762 - services.negotiation_orchestrator - INFO - Formatted History for LLM:
+CARRIER: Thanks for your interest. To give you a quote, I need a few more details: pickup location (city, state), delivery location (city, state), pickup date,
+BROKER (INFO_REQUEST): what is your mc carrier?
+CARRIER (INFO_RESPONSE): Yeah, our MC is MC10101.
+BROKER (INFO_RESPONSE): Pickup: *Chicago, IL*
+Delivery: *Dallas, TX*
+Pickup Date: *Dec 7*
+Delivery Date: *Dec 9*
+Equipment: *Dry Van*
+Weight: *42,000 lbs*
+CARRIER (INFO_REQUEST): Thanks for the info. I just need a few more details: deliveryLocation. Could you please provide them?
+2025-12-05 11:03:46,031 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-05 11:03:46,035 - services.negotiation_orchestrator - INFO - Classification - Intent: unclear
+2025-12-05 11:03:46,035 - services.negotiation_orchestrator - INFO - Classification - Confidence: 0.90
+2025-12-05 11:03:46,035 - services.negotiation_orchestrator - INFO - Classification - Extracted Price: $None
+2025-12-05 11:03:46,035 - services.negotiation_orchestrator - INFO - Classification - Reasoning: The broker is providing specific load information (delivery location) in response to the carrier's request for more details, which fits the INFO_RESPONSE / LOAD_DETAILS category.
+2025-12-05 11:03:46,036 - services.negotiation_orchestrator - INFO - Result - Action: clarify
+2025-12-05 11:03:46,036 - services.negotiation_orchestrator - INFO - Result - Status: negotiating
+2025-12-05 11:03:46,036 - services.negotiation_orchestrator - INFO - Result - Proposed Price: $None
+2025-12-05 11:03:46,036 - services.negotiation_orchestrator - INFO - Result - New Negotiation Round: 0
+2025-12-05 11:03:46,036 - services.negotiation_orchestrator - INFO - Result - New Info Exchange Count: 2
+2025-12-05 11:03:46,036 - services.negotiation_orchestrator - INFO - ============================================================
+2025-12-05 11:03:46,036 - actions.negotiation - INFO - Orchestrator result:
+2025-12-05 11:03:46,036 - actions.negotiation - INFO -   Action: clarify
+2025-12-05 11:03:46,036 - actions.negotiation - INFO -   Status: negotiating
+2025-12-05 11:03:46,036 - actions.negotiation - INFO -   Price: $None
+2025-12-05 11:03:46,036 - actions.negotiation - INFO -   Response: Hey, could you clarify what you need? Happy to help once I understand the request....
+2025-12-05 11:03:46,036 - actions.negotiation - INFO -   Reasoning: Intent unclear, requesting clarification
+2025-12-05 11:03:46,037 - actions.negotiation - INFO - New metadata to persist:
+2025-12-05 11:03:46,037 - actions.negotiation - INFO -   - negotiationRound: 0
+2025-12-05 11:03:46,037 - actions.negotiation - INFO -   - infoExchangeCount: 2
+2025-12-05 11:03:46,037 - actions.negotiation - INFO -   - conversationState: info_gathering
+2025-12-05 11:03:46,037 - actions.negotiation - INFO -   - messageType: UNCLEAR
+2025-12-05 11:03:46,154 - httpx - INFO - HTTP Request: POST https://services.supertruck.ai/api/v1/negotiations "HTTP/1.1 201 Created"
+2025-12-05 11:03:46,156 - actions.negotiation - INFO - Incoming negotiation saved WITH METADATA
+2025-12-05 11:03:48,610 - httpx - INFO - HTTP Request: POST https://services.supertruck.ai/api/v1/negotiations "HTTP/1.1 201 Created"
+2025-12-05 11:03:48,611 - actions.negotiation - INFO - Outgoing response saved WITH METADATA
+2025-12-05 11:03:48,611 - actions.negotiation - INFO - 
 ================================================================================
-2025-12-05 10:31:32,320 - actions.negotiation - ERROR - ERROR IN EXECUTE_NEGOTIATION
-2025-12-05 10:31:32,320 - actions.negotiation - ERROR - Error: float() argument must be a string or a real number, not 'NoneType'
-2025-12-05 10:31:32,320 - actions.negotiation - ERROR - Full traceback:
-Traceback (most recent call last):
-  File "/app/actions/negotiation.py", line 371, in execute_negotiation
-    min_rate = float(currBid.get("minRate", 0))
-TypeError: float() argument must be a string or a real number, not 'NoneType'
-2025-12-05 10:31:32,323 - actions.negotiation - ERROR - ================================================================================
+2025-12-05 11:03:48,611 - actions.negotiation - INFO - NEGOTIATION ACTION COMPLETED
+2025-12-05 11:03:48,611 - actions.negotiation - INFO - ================================================================================
 
-2025-12-05 10:31:32,323 - main - ERROR - Unexpected error: TypeError("float() argument must be a string or a real number, not 'NoneType'")
-Traceback (most recent call last):
-  File "/app/main.py", line 195, in message_processor
-    await negotiation.execute_negotiation(data=params)
-  File "/app/actions/negotiation.py", line 371, in execute_negotiation
-    min_rate = float(currBid.get("minRate", 0))
-TypeError: float() argument must be a string or a real number, not 'NoneType'
-2025-12-05 10:31:32,326 - core.rabbitmq - INFO - ✅ Message processed successfully
+2025-12-05 11:03:48,611 - main - INFO - Message processed successfully
+2025-12-05 11:03:48,611 - main - INFO - ============================================================
+2025-12-05 11:03:48,612 - core.rabbitmq - INFO - ✅ Message processed successfully //// what happened like what is like it asked fo rht einfo nad like then it should have been like gone to the 

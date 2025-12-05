@@ -368,9 +368,13 @@ Broker asks about CARRIER details - these need immediate answers.
 Broker asks OTHER non-price questions (not about carrier).
 - Load-related questions: "what equipment do you need"
 
-### INFO_RESPONSE / LOAD_DETAILS
-Broker provides load information.
-- Pickup/delivery locations, dates, weight, commodity
+### INFO_RESPONSE / LOAD_DETAILS (HIGH PRIORITY - use this when broker provides information)
+Broker provides load information in response to carrier's request. USE THIS INTENT when:
+- Broker provides pickup/delivery locations, dates, weight, commodity
+- Broker responds to carrier's request for more details
+- Message contains load details like city names, states, dates, weight, equipment type
+- IMPORTANT: If the carrier asked for info and broker provides it, this is INFO_RESPONSE even if formatting is different
+- Examples: "Pickup: Chicago, IL", "Dallas TX to Houston TX", "Dec 7 pickup", "42000 lbs dry van"
 
 ### RATE_CONFIRMATION
 Rate con document mentioned.
@@ -379,7 +383,8 @@ Rate con document mentioned.
 Ready to book.
 
 ### UNCLEAR
-Cannot determine.
+ONLY use this if the message is truly incomprehensible or completely unrelated to freight.
+DO NOT use unclear if the broker is providing load details or responding to a request for information.
 
 ## OUTPUT (JSON only):
 {
@@ -454,6 +459,16 @@ Classify this message's intent.
                 }
                 intent = intent_map.get(intent_str, MessageIntent.UNCLEAR)
 
+            # Post-processing: If LLM says unclear but reasoning suggests INFO_RESPONSE, override
+            reasoning = result.get('reasoning', '').lower()
+            if intent == MessageIntent.UNCLEAR:
+                if any(phrase in reasoning for phrase in [
+                    'info_response', 'load_details', 'load information',
+                    'providing', 'pickup', 'delivery', 'locations'
+                ]):
+                    logger.info("Override: LLM said unclear but reasoning suggests INFO_RESPONSE")
+                    intent = MessageIntent.INFO_RESPONSE
+
             return ClassificationResult(
                 intent=intent,
                 confidence=result.get('confidence', 0.5),
@@ -514,6 +529,27 @@ Classify this message's intent.
                     reasoning="Initial price offer"
                 )
 
+        # Load details / Info response patterns - check if broker is providing info
+        # This should be checked BEFORE carrier info request patterns
+        load_info_patterns = [
+            r'\b(pickup|pick\s*up|origin)\s*[:.]?\s*[a-z]+',
+            r'\b(delivery|deliver|destination|dest|drop\s*off)\s*[:.]?\s*[a-z]+',
+            r'\b(dec|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov)\s*\d+',
+            r'\b\d{1,2}[/-]\d{1,2}([/-]\d{2,4})?\b',  # Date patterns
+            r'\b\d+[,.]?\d*\s*(lbs?|pounds?|kg)\b',  # Weight patterns
+            r'\b(dry\s*van|flatbed|reefer|refrigerated|step\s*deck)\b',  # Equipment types
+            r'\b[a-z]+\s*,\s*[a-z]{2}\b',  # City, State format (e.g., "Chicago, IL")
+        ]
+
+        # If carrier last asked for info and message contains load details, it's INFO_RESPONSE
+        load_info_match_count = sum(1 for pattern in load_info_patterns if re.search(pattern, message_lower))
+        if load_info_match_count >= 2:
+            return ClassificationResult(
+                intent=MessageIntent.INFO_RESPONSE,
+                confidence=0.8,
+                reasoning=f"Load details detected ({load_info_match_count} patterns matched)"
+            )
+
         # Carrier info patterns - check BEFORE generic info patterns
         carrier_info_patterns = [
             r'\b(mc|m\.c\.|mc\s*number|motor\s*carrier)\b',
@@ -539,6 +575,16 @@ Classify this message's intent.
                 confidence=0.6,
                 reasoning="Question pattern detected"
             )
+
+        # If we're in info_gathering state and the message looks like a response (not a question),
+        # treat it as INFO_RESPONSE
+        if context.state == ConversationState.INFO_GATHERING and '?' not in message_lower:
+            if load_info_match_count >= 1:
+                return ClassificationResult(
+                    intent=MessageIntent.INFO_RESPONSE,
+                    confidence=0.7,
+                    reasoning="In info_gathering state and message appears to provide info"
+                )
 
         return ClassificationResult(
             intent=MessageIntent.UNCLEAR,
@@ -903,8 +949,11 @@ class NegotiationOrchestrator:
             new_metadata.messageType = intent.value.upper()
             new_metadata.infoExchangeCount += 1
 
+            # Mark as ready to negotiate since we received load info
+            new_metadata.conversationState = ConversationState.READY_TO_NEGOTIATE.value
+
             if min_price > 0 and max_price > 0:
-                new_metadata.conversationState = ConversationState.READY_TO_NEGOTIATE.value
+                # We have pricing, provide initial rate
                 new_metadata.negotiationRound += 1
                 new_metadata.lastCarrierPrice = max_price
 
@@ -919,13 +968,15 @@ class NegotiationOrchestrator:
                     reasoning="Info received, providing initial rate"
                 )
             else:
+                # No pricing available yet - ask broker for their rate
+                # State is READY_TO_NEGOTIATE so when they respond with a price, we can negotiate
                 return NegotiationResult(
                     action=NegotiationAction.REQUEST_INFO,
-                    response="Thanks for the info! What rate are you thinking for this load?",
+                    response="Thanks for the details! What rate works for you on this load?",
                     proposed_price=None,
                     status="negotiating",
                     metadata=new_metadata,
-                    reasoning="Need rate info to proceed"
+                    reasoning="Info received, asking broker for rate since pricing not available"
                 )
 
         # Rate Confirmation
