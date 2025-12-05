@@ -95,7 +95,7 @@ class LoadBoard:
             "brokerContactEmail": offer.get("brokerContactEmail") or None,
             "deliveryDate": offer.get("deliveryDate") or None,
             "pickupLocation": offer.get("pickupLocation") or None,
-            "deliveryLocation": offer.get("dropoffLocation") or None,
+            "deliveryLocation": offer.get("deliveryLocation") or None,
             "equipmentType": offer.get("equipmentType") or None,
             "pickupDate": offer.get("pickupDate") or None,
             "weightLbs": int(offer["weightLbs"]) if offer.get("weightLbs") not in [None, ""] and str(offer.get("weightLbs")).isdigit() else None,

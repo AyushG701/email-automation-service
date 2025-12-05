@@ -66,7 +66,7 @@ class ProcessBrokerResponseResponse(BaseModel):
 
 class LoadOfferData(BaseModel):
     pickupLocation: Optional[str] = None
-    deliveryLocation: Optional[str] = None
+    dropoffLocation: Optional[str] = None
     pickupDate: Optional[str] = None
     deliveryDate: Optional[str] = None
     equipmentType: Optional[str] = None
@@ -316,7 +316,7 @@ class NegotiationAction:
 
             self.logger.info(f"Load offer found: {curr_offer.get('id')}")
             self.logger.info(f"Pickup: {curr_offer.get('pickupLocation')}")
-            self.logger.info(f"Delivery: {curr_offer.get('deliveryLocation')}")
+            self.logger.info(f"Delivery: {curr_offer.get('dropoffLocation')}")
             self.logger.info(
                 f"Confidence score: {curr_offer.get('loadConfidentialScore')}")
 
@@ -503,14 +503,14 @@ class NegotiationAction:
                     # Calculate distance and rates
                     total_distance = await distance.calculate_distance(
                         curr_offer.get("pickupLocation", ""),
-                        curr_offer.get("deliveryLocation", "")
+                        curr_offer.get("dropoffLocation", "")
                     )
                     self.logger.info(
                         f"Distance: {total_distance.get('distance')} miles")
 
                     rate_calc = await calculator.calculate_bid(
-                        float(total_distance.get("distance", 500)),
-                        float(curr_offer.get("requestedRate", 0))
+                        float(total_distance.get("distance") or 0),
+                        float(curr_offer.get("requestedRate") or 0)
                     )
                     min_rate = rate_calc.min_rate
                     max_rate = rate_calc.max_rate

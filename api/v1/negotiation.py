@@ -227,7 +227,7 @@ class NegotiationController:
             if (load_offer["loadConfidentialScore"] > 90):
                 total_distance = await distance.calculate_distance(
                     load_offer["pickupLocation"],
-                    load_offer["deliveryLocation"]
+                    load_offer["dropoffLocation"]
                 )
                 self.logger.info(
                     "Distance calculated")
@@ -269,7 +269,7 @@ class NegotiationController:
                 if info_check.can_proceed_to_negotiation:
                     total_distance = await distance.calculate_distance(
                         info_check.updated_load_offer["pickupLocation"],
-                        info_check.updated_load_offer["deliveryLocation"]
+                        info_check.updated_load_offer["dropoffLocation"]
                     )
                     self.logger.info(
                         "Distance calculated")

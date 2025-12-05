@@ -751,7 +751,7 @@ class NegotiationOrchestrator:
 
         broker_offer = classification.extracted_price or context.last_broker_price or 0
         broker_company = load_offer.get('brokerCompany', load_offer.get('brokerContactEmail', 'Broker'))
-        route = f"{load_offer.get('pickupLocation', 'Origin')} → {load_offer.get('deliveryLocation', 'Dest')}"
+        route = f"{load_offer.get('pickupLocation', 'Origin')} → {load_offer.get('dropoffLocation', 'Dest')}"
 
         # Step 4: Initialize new metadata from previous state
         new_metadata = NegotiationMetadata(
