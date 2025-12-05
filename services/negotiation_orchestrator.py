@@ -304,7 +304,7 @@ class ConversationStateBuilder:
             direction = neg.get('negotiationDirection', 'unknown')
             content = neg.get('negotiationRawEmail', '')[:150]
             rate = neg.get('rate')
-            metadata = neg.get('metadata', {})
+            metadata = neg.get('metadata') or {}
 
             prefix = "CARRIER" if direction == "outgoing" else "BROKER"
             rate_str = f" [${rate}]" if rate else ""
@@ -829,13 +829,17 @@ class NegotiationOrchestrator:
 
             response = self._generate_info_response(broker_message, carrier_info)
 
+            # If carrier_info is missing, we can't answer, so ask for load details instead.
+            if not carrier_info:
+                response = "I can answer that, but first, could you please provide the load details, such as pickup/delivery, dates, and weight?"
+
             return NegotiationResult(
                 action=NegotiationAction.PROVIDE_INFO,
                 response=response,
                 proposed_price=None,
                 status="negotiating",
                 metadata=new_metadata,
-                reasoning="Providing requested information (not a price round)"
+                reasoning="Providing requested information or asking for load details if carrier info is missing."
             )
 
         # Info Response / Load Details - INCREMENT info exchange

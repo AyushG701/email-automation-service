@@ -152,14 +152,25 @@ class NegotiationController:
             if not extraction_result.get('extraction_successful', False):
                 self.logger.warning(
                     "No information extracted from broker message")
+
+                # Identify missing fields even if extraction fails
+                missing_info = self.info_seeker.identify_missing_fields(
+                    curr_offer, "offer")
+                still_missing_critical = missing_info.get(
+                    'missing_critical_fields', [])
+                
+                from services.load_info_seeker import FIELD_DESCRIPTIONS
+                missing_readable = [FIELD_DESCRIPTIONS.get(f, f) for f in still_missing_critical]
+                message = f"Thanks for your interest. To give you a quote, I need a few more details: {', '.join(missing_readable)}. Could you please provide them?" if missing_readable else "Thanks for your interest. Please provide the load details so I can give you a quote."
+
                 return ProcessBrokerResponseResponse(
                     extraction_successful=False,
                     fields_extracted=[],
                     extracted_values={},
                     updated_load_offer=curr_offer,
-                    still_missing_critical_fields=[],
+                    still_missing_critical_fields=still_missing_critical,
                     can_proceed_to_negotiation=False,
-                    message="Thank you for your interest. To proceed, could you please provide more details about the load, such as pickup/delivery locations, dates, and weight?"
+                    message=message
                 )
 
             # Merge extracted info into current load offer
@@ -255,7 +266,7 @@ class NegotiationController:
                 })
                 self.logger.info(
                     f"Load info checked for negotiation readiness {info_check}")
-                if len(info_check.still_missing_critical_fields) <= 1:
+                if info_check.can_proceed_to_negotiation:
                     total_distance = await distance.calculate_distance(
                         info_check.updated_load_offer["pickupLocation"],
                         info_check.updated_load_offer["deliveryLocation"]
