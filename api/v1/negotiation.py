@@ -49,6 +49,9 @@ class NegotiationResponse(BaseModel):
     response: str = Field(..., max_length=9000)
     proposed_price: Optional[str] = None
     status: str = Field(..., pattern="^(negotiating|accepted|rejected)$")
+    min_price: Optional[float] = None
+    max_price: Optional[float] = None
+
     # negotiation_round: int = Field(..., ge=1)
 
 # ============================================================================
@@ -222,7 +225,7 @@ class NegotiationController:
                 )
                 self.logger.info(
                     "Min & Max rate calculated")
-                
+
                 parsed_email_body = EmailReplyParser.parse_reply(
                     load_offer["offerEmail"])
                 # *AI NEGOTIATION
@@ -237,8 +240,11 @@ class NegotiationController:
                 )
                 return NegotiationResponse(
                     response=result.response,
-                    proposed_price=str(result.proposed_price) if result.proposed_price else None,
+                    proposed_price=str(
+                        result.proposed_price) if result.proposed_price else None,
                     status=result.status,
+                    min_price=rate_calc.min_rate,
+                    max_price=rate_calc.max_rate
                     # negotiation_round=negotiation_round
                 )
             else:
@@ -246,11 +252,12 @@ class NegotiationController:
                     "broker_message": load_offer["offerEmail"],
                     "load_offer": load_offer
                 })
-                self.logger.info(f"Load info checked for negotiation readiness {info_check}")
+                self.logger.info(
+                    f"Load info checked for negotiation readiness {info_check}")
                 if len(info_check.still_missing_critical_fields) <= 1:
                     total_distance = await distance.calculate_distance(
                         info_check.updated_load_offer["pickupLocation"],
-                        info_check.updated_load_offer["deliveryLocation"] 
+                        info_check.updated_load_offer["deliveryLocation"]
                     )
                     self.logger.info(
                         "Distance calculated")
@@ -260,7 +267,7 @@ class NegotiationController:
                     self.logger.info(
                         "Min & Max rate calculated")
                     parsed_email_body = EmailReplyParser.parse_reply(
-                                        load_offer["offerEmail"])
+                        load_offer["offerEmail"])
                     # *AI NEGOTIATION
                     result = negotiation_orchestrator.process_message(
                         broker_message=parsed_email_body,
@@ -277,8 +284,11 @@ class NegotiationController:
                     # Return response
                     return NegotiationResponse(
                         response=result.response,
-                        proposed_price=str(result.proposed_price) if result.proposed_price else None,
+                        proposed_price=str(
+                            result.proposed_price) if result.proposed_price else None,
                         status=result.status,
+                        min_price=rate_calc.min_rate,
+                        max_price=rate_calc.max_rate
                         # negotiation_round=negotiation_round
                     )
 
@@ -291,7 +301,7 @@ class NegotiationController:
                         status="negotiating",
                         # negotiation_round=negotiation_round
                     )
-                
+
         except ValueError as ve:
             self.logger.warning(f"Validation error: {str(ve)}")
             raise HTTPException(status_code=400, detail=str(ve))
