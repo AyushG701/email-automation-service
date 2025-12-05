@@ -58,7 +58,7 @@ class FreightBidCalculator:
     using a safety multiplier based on location risk.
     """
 
-    def __init__(self, cost_per_mile: float = 2.00, default_profit_margin: float = 0.20, max_profit_margin: float = 0.30):
+    def __init__(self, cost_per_mile: float = 2.00, default_profit_margin: float = 0.20, max_profit_margin: float = 0.50):
         """
         Initialize the calculator with default values.
 
@@ -78,7 +78,7 @@ class FreightBidCalculator:
 
     async def calculate_bid(self,
                             loaded_miles: int,
-                            location_risk: LocationRisk = LocationRisk.STANDARD,
+                            location_risk: LocationRisk = LocationRisk.HIGH_RISK,
                             profit_margin: Optional[float] = None,
                             round_to: int = 10) -> BidResult:
         """

@@ -597,7 +597,8 @@ class ResponseGenerator:
         our_price: Optional[float],
         broker_offer: Optional[float],
         route: str = "",
-        min_price: float = 0
+        min_price: float = 0,
+        is_first_message: bool = False
     ) -> str:
         """Generate response based on action"""
         if action == NegotiationAction.ACCEPT:
@@ -605,13 +606,13 @@ class ResponseGenerator:
         elif action == NegotiationAction.REJECT:
             return self._rejection_response(broker_company, min_price)
         elif action == NegotiationAction.COUNTER:
-            return self._counter_response(broker_company, our_price, broker_offer)
+            return self._counter_response(broker_company, our_price, broker_offer, is_first_message)
         elif action == NegotiationAction.REQUEST_INFO:
             return "I'm interested but need a few more details to give you a rate. What's the pickup/delivery and dates?"
         elif action == NegotiationAction.CLARIFY:
             return "Hey, could you clarify what you need? Happy to help once I understand the request."
         else:
-            return self._counter_response(broker_company, our_price, broker_offer)
+            return self._counter_response(broker_company, our_price, broker_offer, is_first_message)
 
     def _acceptance_response(self, broker_company: str) -> str:
         responses = [
@@ -631,15 +632,26 @@ class ResponseGenerator:
         ]
         return responses[hash(broker_company) % len(responses)]
 
-    def _counter_response(self, broker_company: str, our_price: Optional[float], broker_offer: Optional[float]) -> str:
+    def _counter_response(self, broker_company: str, our_price: Optional[float], broker_offer: Optional[float], is_first_message: bool = False) -> str:
         if not our_price:
             return "Let's discuss pricing. What rate works for you?"
-        responses = [
-            f"I'd need ${our_price:.0f} to move this. Can you do that?",
-            f"Best I can do is ${our_price:.0f} for this lane. Let me know.",
-            f"${our_price:.0f} would make this work. What do you think?",
-            f"Looking at this run, ${our_price:.0f} is where I need to be."
-        ]
+
+        # First message responses - thank them for the load
+        if is_first_message:
+            responses = [
+                f"Thanks for the load. I can do ${our_price:.0f} for this.",
+                f"Appreciate you reaching out. I'd need ${our_price:.0f} for this run.",
+                f"Thanks for the opportunity. ${our_price:.0f} would work for me on this.",
+                f"Thanks for thinking of us. I can move this for ${our_price:.0f}."
+            ]
+        else:
+            # Regular counter responses
+            responses = [
+                f"I'd need ${our_price:.0f} to move this. Can you do that?",
+                f"Best I can do is ${our_price:.0f} for this lane. Let me know.",
+                f"${our_price:.0f} would make this work. What do you think?",
+                f"Looking at this run, ${our_price:.0f} is where I need to be."
+            ]
         return responses[hash(str(broker_offer)) % len(responses)]
 
 
@@ -839,7 +851,7 @@ class NegotiationOrchestrator:
                 return NegotiationResult(
                     action=NegotiationAction.COUNTER,
                     response=self.response_generator.generate(
-                        NegotiationAction.COUNTER, broker_company, max_price, broker_offer, route
+                        NegotiationAction.COUNTER, broker_company, max_price, broker_offer, route, is_first_message=True
                     ),
                     proposed_price=max_price,
                     status="negotiating",
@@ -958,10 +970,13 @@ class NegotiationOrchestrator:
 
         new_metadata.lastCarrierPrice = counter_price
 
+        # First round means this is our initial response to broker's first price offer
+        is_first_message = (negotiation_round == 1)
+
         return NegotiationResult(
             action=NegotiationAction.COUNTER,
             response=self.response_generator.generate(
-                NegotiationAction.COUNTER, broker_company, counter_price, broker_offer, route, min_price
+                NegotiationAction.COUNTER, broker_company, counter_price, broker_offer, route, min_price, is_first_message
             ),
             proposed_price=counter_price,
             status="negotiating",

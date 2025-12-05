@@ -1,0 +1,28 @@
+2025-12-05 06:02:13,626 - core.rabbitmq - INFO - 👀 Starting consumer on queue: email_ingestion_queue
+2025-12-05 06:03:53,101 - httpx - INFO - HTTP Request: GET https://services.supertruck.ai/load-board/api/v1/load-offer/b594165e-abc6-475e-b913-cd4412f3287c "HTTP/1.1 200 OK"
+2025-12-05 06:03:54,069 - integration.geo_code - INFO - Origin geocode: (40.7127281, -74.0060152)
+2025-12-05 06:03:55,180 - integration.geo_code - INFO - Destination geocode: (39.9622601, -83.0007065)
+2025-12-05 06:03:55,180 - integration.geo_code - INFO - Radar distance calculation URL: https://api.radar.io/v1/route/distance?origin=40.7127281,-74.0060152&destination=39.9622601,-83.0007065&modes=truck&units=imperial&geometry=linestring
+2025-12-05 06:03:57,512 - api.v1.negotiation - INFO - Distance calculated
+2025-12-05 06:03:57,512 - api.v1.negotiation - INFO - Min & Max rate calculated
+2025-12-05 06:03:57,514 - services.negotiation_orchestrator - INFO - ============================================================
+2025-12-05 06:03:57,514 - services.negotiation_orchestrator - INFO - NEGOTIATION ORCHESTRATOR - Processing Message
+2025-12-05 06:03:57,514 - services.negotiation_orchestrator - INFO - ============================================================
+2025-12-05 06:03:57,514 - services.negotiation_orchestrator - INFO - Context from DB - State: initial
+2025-12-05 06:03:57,514 - services.negotiation_orchestrator - INFO - Context from DB - Info Exchanges: 0
+2025-12-05 06:03:57,514 - services.negotiation_orchestrator - INFO - Context from DB - Negotiation Rounds: 0
+2025-12-05 06:03:57,514 - services.negotiation_orchestrator - INFO - Context from DB - Last Broker Price: $None
+2025-12-05 06:03:57,514 - services.negotiation_orchestrator - INFO - Context from DB - Last Carrier Price: $None
+2025-12-05 06:03:59,978 - httpx - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-12-05 06:03:59,995 - services.negotiation_orchestrator - INFO - Classification - Intent: load_details
+2025-12-05 06:03:59,996 - services.negotiation_orchestrator - INFO - Classification - Confidence: 0.90
+2025-12-05 06:03:59,996 - services.negotiation_orchestrator - INFO - Classification - Extracted Price: $2150
+2025-12-05 06:03:59,996 - services.negotiation_orchestrator - INFO - Classification - Reasoning: The broker is providing detailed information about the load, including pickup and delivery dates, temperature requirements, commodity type, weight, and rate.
+2025-12-05 06:03:59,996 - services.negotiation_orchestrator - INFO - Result - Action: counter
+2025-12-05 06:03:59,996 - services.negotiation_orchestrator - INFO - Result - Status: negotiating
+2025-12-05 06:03:59,996 - services.negotiation_orchestrator - INFO - Result - Proposed Price: $1820
+2025-12-05 06:03:59,996 - services.negotiation_orchestrator - INFO - Result - New Negotiation Round: 1
+2025-12-05 06:03:59,996 - services.negotiation_orchestrator - INFO - Result - New Info Exchange Count: 1
+2025-12-05 06:03:59,996 - services.negotiation_orchestrator - INFO - ============================================================
+Calculated bid for 606.5 miles at Standard - Normal areas with decent load availability: $1680.00 (Max: $1820.00) break_even_cost=$1394.95 target_profit_margin=0% safety_multiplier=1.15x estimated_total_miles=697 cost_per_mile=$2.00 calculated_bid=$1673.94
+INFO:     10.1.1.1:0 - "POST /api/v1/negotiate HTTP/1.1" 200 OK
