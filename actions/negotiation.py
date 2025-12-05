@@ -367,9 +367,10 @@ class NegotiationAction:
             if bidding_type == BIDDING_TYPE.AUTO.value:
                 self.logger.info('Auto bid - processing with orchestrator')
 
-                # Determine pricing
-                min_rate = float(currBid.get("minRate", 0))
-                max_rate = float(currBid.get("maxRate", 0))
+                # Determine pricing - use 'or 0' to handle None values
+                min_rate = float(currBid.get("minRate") or 0)
+                max_rate = float(currBid.get("maxRate") or 0)
+                sweet_spot = float(currBid.get("sweetSpot") or 0)
 
                 # If no rates set, calculate them
                 if min_rate <= 0 or max_rate <= 0:
@@ -379,6 +380,69 @@ class NegotiationAction:
                         self.logger.info(
                             f"Low confidence ({confidence_score}) - checking for info")
 
+                        # FIRST: Check if broker is asking for CARRIER info (MC, DOT, etc.)
+                        # These should be answered immediately, not treated as load info
+                        carrier_info_keywords = [
+                            'mc', 'mc number', 'dot', 'dot number', 'insurance',
+                            'authority', 'carrier', 'equipment', 'truck', 'trailer',
+                            'driver', 'experience', 'available', 'capacity'
+                        ]
+                        latest_lower = latest.lower()
+                        is_asking_carrier_info = any(
+                            keyword in latest_lower for keyword in carrier_info_keywords
+                        ) and '?' in latest
+
+                        if is_asking_carrier_info:
+                            self.logger.info("Broker is asking for carrier info - responding directly")
+
+                            # Use InformationSeeker to answer carrier info questions
+                            info_seeker = InformationSeeker(data=carrier)
+                            carrier_response = info_seeker.ask(question=latest)
+
+                            # Increment info exchange count
+                            new_info_count = persisted_state['infoExchangeCount'] + 1
+
+                            # Save incoming carrier info request
+                            await supertruck.negotiate(tenant_id=tenant_id, data={
+                                "rate": None,
+                                "negotiationDirection": "incoming",
+                                "bidId": currBid["id"],
+                                "negotiationRawEmail": latest,
+                                "messageId": message_id,
+                                "inReplyTo": data.get("inReplyTo"),
+                                "references": data.get("references"),
+                                "metadata": {
+                                    "messageType": "INFO_REQUEST",
+                                    "negotiationRound": persisted_state['negotiationRound'],
+                                    "infoExchangeCount": new_info_count,
+                                    "conversationState": "info_gathering",
+                                    "lastCarrierPrice": persisted_state['lastCarrierPrice'],
+                                    "lastBrokerPrice": persisted_state['lastBrokerPrice'],
+                                    "timestamp": datetime.utcnow().isoformat()
+                                }
+                            })
+
+                            # Save outgoing carrier info response
+                            await supertruck.negotiate(tenant_id=tenant_id, data={
+                                "rate": None,
+                                "negotiationDirection": "outgoing",
+                                "bidId": currBid["id"],
+                                "negotiationRawEmail": carrier_response,
+                                "metadata": {
+                                    "messageType": "INFO_RESPONSE",
+                                    "negotiationRound": persisted_state['negotiationRound'],
+                                    "infoExchangeCount": new_info_count,
+                                    "conversationState": "info_gathering",
+                                    "lastCarrierPrice": persisted_state['lastCarrierPrice'],
+                                    "lastBrokerPrice": persisted_state['lastBrokerPrice'],
+                                    "timestamp": datetime.utcnow().isoformat()
+                                }
+                            })
+
+                            self.logger.info(f"Carrier info response sent: {carrier_response}")
+                            return
+
+                        # If not asking carrier info, try to extract LOAD info from broker message
                         info_check = await self.process_broker_response({
                             "broker_message": latest,
                             "tenant_id": tenant_id,
@@ -472,6 +536,9 @@ class NegotiationAction:
                 self.logger.info("USING NEGOTIATION ORCHESTRATOR")
                 self.logger.info("="*60)
 
+                # Use saved sweet_spot or calculate if not available
+                effective_sweet_spot = sweet_spot if sweet_spot > 0 else (min_rate + (max_rate - min_rate) * 0.6)
+
                 result = self.orchestrator.process_message(
                     broker_message=latest,
                     negotiation_history=conversation_history,
@@ -479,7 +546,7 @@ class NegotiationAction:
                     pricing={
                         "min_price": min_rate,
                         "max_price": max_rate,
-                        "sweet_spot": min_rate + (max_rate - min_rate) * 0.6
+                        "sweet_spot": effective_sweet_spot
                     },
                     carrier_info=carrier
                 )

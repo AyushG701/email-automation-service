@@ -48,7 +48,8 @@ class MessageIntent(str, Enum):
     PRICE_REJECTION = "price_rejection"
 
     # Info-related (does NOT affect negotiation rounds)
-    INFO_REQUEST = "info_request"
+    INFO_REQUEST = "info_request"           # Broker asking for carrier info (MC, DOT, etc.)
+    CARRIER_INFO_REQUEST = "carrier_info_request"  # Specifically asking about MC, DOT, equipment
     INFO_RESPONSE = "info_response"
     LOAD_DETAILS = "load_details"
 
@@ -353,13 +354,23 @@ Broker provides or counters with a price.
 Broker asks for carrier's rate.
 - "what's your rate", "what do you need"
 
+### CARRIER_INFO_REQUEST (high priority for questions about carrier)
+Broker asks about CARRIER details - these need immediate answers.
+- MC number: "what's your mc", "mc number", "what is your mc"
+- DOT number: "dot number", "what's your dot"
+- Insurance: "insurance", "coverage"
+- Equipment/trucks: "what equipment", "truck type"
+- Authority: "authority", "carrier authority"
+- Driver: "driver experience", "team drivers"
+- Availability: "are you available", "when available"
+
 ### INFO_REQUEST
-Broker asks non-price questions.
-- Equipment, dates, MC number, availability
+Broker asks OTHER non-price questions (not about carrier).
+- Load-related questions: "what equipment do you need"
 
 ### INFO_RESPONSE / LOAD_DETAILS
-Broker provides information.
-- Pickup/delivery, dates, weight
+Broker provides load information.
+- Pickup/delivery locations, dates, weight, commodity
 
 ### RATE_CONFIRMATION
 Rate con document mentioned.
@@ -438,6 +449,8 @@ Classify this message's intent.
                     'bid_rejection': MessageIntent.PRICE_REJECTION,
                     'negotiation': MessageIntent.PRICE_COUNTER,
                     'information_seeking': MessageIntent.INFO_REQUEST,
+                    'carrier_info': MessageIntent.CARRIER_INFO_REQUEST,
+                    'mc_request': MessageIntent.CARRIER_INFO_REQUEST,
                 }
                 intent = intent_map.get(intent_str, MessageIntent.UNCLEAR)
 
@@ -501,7 +514,25 @@ Classify this message's intent.
                     reasoning="Initial price offer"
                 )
 
-        # Info patterns
+        # Carrier info patterns - check BEFORE generic info patterns
+        carrier_info_patterns = [
+            r'\b(mc|m\.c\.|mc\s*number|motor\s*carrier)\b',
+            r'\b(dot|d\.o\.t\.|dot\s*number)\b',
+            r'\b(insurance|coverage|liability)\b',
+            r'\b(authority|carrier\s*authority)\b',
+            r'\b(equipment|truck|trailer)\s*(type|size|available)?\b',
+            r'\b(available|availability)\b'
+        ]
+        if '?' in message_lower:
+            for pattern in carrier_info_patterns:
+                if re.search(pattern, message_lower):
+                    return ClassificationResult(
+                        intent=MessageIntent.CARRIER_INFO_REQUEST,
+                        confidence=0.8,
+                        reasoning="Carrier info question detected (MC, DOT, equipment, etc.)"
+                    )
+
+        # Generic info patterns
         if '?' in message_lower or any(w in message_lower for w in ['what', 'when', 'where', 'how']):
             return ClassificationResult(
                 intent=MessageIntent.INFO_REQUEST,
@@ -695,11 +726,15 @@ class NegotiationOrchestrator:
         context, prev_metadata = ConversationStateBuilder.build_from_history(negotiation_history)
         history_formatted = ConversationStateBuilder.format_history_for_llm(negotiation_history)
 
+        self.logger.info(f"Negotiation History - Total messages: {len(negotiation_history)}")
         self.logger.info(f"Context from DB - State: {context.state.value}")
         self.logger.info(f"Context from DB - Info Exchanges: {context.info_exchanges}")
         self.logger.info(f"Context from DB - Negotiation Rounds: {context.negotiation_rounds}")
         self.logger.info(f"Context from DB - Last Broker Price: ${context.last_broker_price}")
         self.logger.info(f"Context from DB - Last Carrier Price: ${context.last_carrier_price}")
+        self.logger.info(f"Context from DB - Below Min Count: {context.below_min_count}")
+        if history_formatted and history_formatted != "No previous conversation":
+            self.logger.info(f"Formatted History for LLM:\n{history_formatted}")
 
         # Step 2: Classify intent
         classification = self.classifier.classify(broker_message, context, history_formatted)
@@ -819,6 +854,27 @@ class NegotiationOrchestrator:
                 sweet_spot=sweet_spot,
                 broker_company=broker_company,
                 route=route
+            )
+
+        # Carrier Info Request - Broker asking about MC, DOT, equipment, etc.
+        if intent == MessageIntent.CARRIER_INFO_REQUEST:
+            new_metadata.messageType = "CARRIER_INFO_REQUEST"
+            new_metadata.infoExchangeCount += 1
+            new_metadata.conversationState = ConversationState.INFO_GATHERING.value
+
+            response = self._generate_info_response(broker_message, carrier_info)
+
+            # If carrier_info is missing, provide a generic response
+            if not carrier_info:
+                response = "Let me get that information for you. In the meantime, what are the load details?"
+
+            return NegotiationResult(
+                action=NegotiationAction.PROVIDE_INFO,
+                response=response,
+                proposed_price=None,
+                status="negotiating",
+                metadata=new_metadata,
+                reasoning="Providing carrier information (MC, DOT, equipment, etc.)"
             )
 
         # Info Request - INCREMENT info exchange, NOT negotiation round
