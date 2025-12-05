@@ -12,7 +12,8 @@ class AppConfig:
     RABBITMQ_PORT: str = os.getenv("RABBITMQ_PORT")
     RABBITMQ_USER: str = os.getenv("RABBITMQ_USER")
     RABBITMQ_PASS: str = os.getenv("RABBITMQ_PASS")
-    RABBITMQ_URL: str = f"amqp://{RABBITMQ_USER}:{RABBITMQ_PASS}@{RABBITMQ_HOST}:{RABBITMQ_PORT}"
+    RABBITMQ_URL: str = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost/")
+    MULTI_INTENT_ENABLED: bool = os.getenv("MULTI_INTENT_ENABLED", "True").lower() == "true"
 
     # Database Configuration
     DB_USER = os.getenv("DB_USER", "postgres")

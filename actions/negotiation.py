@@ -23,7 +23,6 @@ from integration.load_board import LoadBoard
 from integration.geo_code import GeocodingService
 
 from services.email_intent_classifier import IntentClassifierService
-from services.negotiation import NegotiationService
 from services.negotiation_orchestrator import (
     NegotiationOrchestrator,
     NegotiationAction as OrchestratorAction,
@@ -46,7 +45,6 @@ load_board = LoadBoard()
 distance = GeocodingService()
 
 # Initialize services
-negotiation_service = NegotiationService()
 email_intent = IntentClassifierService()
 loadInfo = LoadInfoSeekerOpenAI()
 calculator = FreightBidCalculator()

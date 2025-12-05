@@ -16,6 +16,7 @@ from enum import Enum
 from typing import Optional, Dict, List, Any, Tuple
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
+from core.utils import extract_price
 from openai import OpenAI
 import os
 
@@ -169,41 +170,7 @@ class NegotiationResult:
     reasoning: str = ""
 
 
-# =============================================================================
-# PRICE EXTRACTOR
-# =============================================================================
 
-class PriceExtractor:
-    """Extract prices from messages with robust pattern matching"""
-
-    PRICE_PATTERNS = [
-        r'\$\s*([\d,]+(?:\.\d{2})?)',
-        r'([\d,]+)\s*(?:dollars?|usd)',
-        r'(?:^|\s)([\d]{4,5})(?:\s|$|\.)',
-        r'([\d]+(?:\.\d+)?)\s*k\b',
-    ]
-
-    @classmethod
-    def extract_price(cls, message: str) -> Optional[float]:
-        """Extract the most likely price from a message"""
-        if not message:
-            return None
-
-        message_lower = message.lower().strip()
-
-        for pattern in cls.PRICE_PATTERNS:
-            matches = re.findall(pattern, message_lower, re.IGNORECASE)
-            for match in matches:
-                try:
-                    value = float(match.replace(',', ''))
-                    if 'k' in message_lower[message_lower.find(match):message_lower.find(match)+10]:
-                        value *= 1000
-                    if 300 <= value <= 50000:
-                        return value
-                except (ValueError, TypeError):
-                    continue
-
-        return None
 
 
 # =============================================================================
@@ -296,7 +263,7 @@ class ConversationStateBuilder:
 
             is_price_msg = any(re.search(p, content, re.I) for p in PRICE_KEYWORDS)
             is_info_msg = any(re.search(p, content, re.I) for p in INFO_KEYWORDS)
-            extracted_price = PriceExtractor.extract_price(content) or rate
+            extracted_price = extract_price(content) or rate
 
             if direction == 'outgoing':  # Carrier
                 if is_price_msg and extracted_price:
@@ -477,7 +444,7 @@ Classify this message's intent.
             return ClassificationResult(
                 intent=intent,
                 confidence=result.get('confidence', 0.5),
-                extracted_price=result.get('extracted_price') or PriceExtractor.extract_price(message),
+                extracted_price=result.get('extracted_price') or extract_price(message),
                 reasoning=result.get('reasoning', '')
             )
 
@@ -517,7 +484,7 @@ Classify this message's intent.
                 )
 
         # Price extraction
-        price = PriceExtractor.extract_price(message)
+        price = extract_price(message)
         if price:
             if context.negotiation_rounds >= 1:
                 return ClassificationResult(

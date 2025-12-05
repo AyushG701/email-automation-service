@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, validator
 
-from services.negotiation import NegotiationService
+from services.negotiation_orchestrator import NegotiationOrchestrator
 from services.load_info_seeker import LoadInfoSeekerOpenAI
 from services.bid_calculator import FreightBidCalculator
 
@@ -28,7 +28,7 @@ from email_reply_parser import EmailReplyParser
 
 logger = logging.getLogger(__name__)
 
-negotiation = NegotiationService()
+negotiation_orchestrator = NegotiationOrchestrator()
 supertruck = SuperTruck()
 load_board = LoadBoard()
 distance = GeocodingService()
@@ -99,7 +99,7 @@ class NegotiationSchema(BaseModel):
 class NegotiationController:
     def __init__(self):
         self.router = APIRouter(prefix="/api/v1", tags=["Negotiation"])
-        self.negotiation_service = NegotiationService()
+        self.negotiation_orchestrator = NegotiationOrchestrator()
         self.logger = logging.getLogger(__name__)
         self.info_seeker = LoadInfoSeekerOpenAI()
 
@@ -226,25 +226,19 @@ class NegotiationController:
                 parsed_email_body = EmailReplyParser.parse_reply(
                     load_offer["offerEmail"])
                 # *AI NEGOTIATION
-                ai_res = negotiation.offer_negotiation(
-                    parsed_email_body,
-                    rate_calc.min_rate,
-                    rate_calc.max_rate,
-                    [],
-                    load_offer  # if required
+                result = negotiation_orchestrator.process_message(
+                    broker_message=parsed_email_body,
+                    negotiation_history=[],
+                    load_offer=load_offer,
+                    pricing={
+                        'min_price': rate_calc.min_rate,
+                        'max_price': rate_calc.max_rate
+                    }
                 )
-                # Execute negotiation
-                # result = self.negotiation_service.offer_negotiation(
-                #     broker_message=load_offer["offerEmail"],
-                #     min_price=rate_calc.min_rate,
-                #     max_price=rate_calc.max_rate,
-                #     chat_history=[],
-                #     load_details=load_offer
-                # )
                 return NegotiationResponse(
-                    response=ai_res['response'],
-                    proposed_price=ai_res.get('proposed_price'),
-                    status=ai_res['status'],
+                    response=result.response,
+                    proposed_price=str(result.proposed_price) if result.proposed_price else None,
+                    status=result.status,
                     # negotiation_round=negotiation_round
                 )
             else:
@@ -268,21 +262,23 @@ class NegotiationController:
                     parsed_email_body = EmailReplyParser.parse_reply(
                                         load_offer["offerEmail"])
                     # *AI NEGOTIATION
-                    ai_res = negotiation.offer_negotiation(
-                        parsed_email_body,
-                        rate_calc.min_rate,
-                        rate_calc.max_rate,
-                        [],
-                        load_offer  # if required
+                    result = negotiation_orchestrator.process_message(
+                        broker_message=parsed_email_body,
+                        negotiation_history=[],
+                        load_offer=info_check.updated_load_offer,
+                        pricing={
+                            'min_price': rate_calc.min_rate,
+                            'max_price': rate_calc.max_rate
+                        }
                     )
                     self.logger.info(
                         "Info checked and continue for conversation")
                     # ASK The detail with broker
                     # Return response
                     return NegotiationResponse(
-                        response=ai_res['response'],
-                        proposed_price=ai_res.get('proposed_price'),
-                        status=ai_res['status'],
+                        response=result.response,
+                        proposed_price=str(result.proposed_price) if result.proposed_price else None,
+                        status=result.status,
                         # negotiation_round=negotiation_round
                     )
 

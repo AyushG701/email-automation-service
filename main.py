@@ -33,6 +33,7 @@ from integration.supertruck import SuperTruck
 from integration.load_board import LoadBoard
 
 from actions.negotiation import NegotiationAction
+from actions.multi_intent_negotiation import MultiIntentNegotiationAction
 
 from api.v1.negotiation import NegotiationController
 import logging
@@ -123,6 +124,7 @@ received_messages = []
 
 supertruck = SuperTruck()
 negotiation = NegotiationAction()
+multi_intent_negotiation = MultiIntentNegotiationAction()
 load_board = LoadBoard()
 
 
@@ -179,13 +181,18 @@ async def message_processor(message: aio_pika.IncomingMessage):
 
             # FLOW 1: Continue existing conversation (reply)
             if email_data.get("inReplyTo"):
-                logger.info("Continuing existing conversation (reply)")
                 email_log = await supertruck.find_email_log(
                     tenant_id=email_data["tenantId"],
                     thread_id=email_data["threadId"]
                 )
-                # Use the new orchestrator-based negotiation
-                await negotiation.execute_negotiation(data=params)
+
+                # FEATURE FLAG: Choose negotiation flow
+                if config.MULTI_INTENT_ENABLED:
+                    logger.info("Using MULTI-INTENT negotiation flow")
+                    await multi_intent_negotiation.execute_negotiation(data=params)
+                else:
+                    logger.info("Using SINGLE-INTENT negotiation flow")
+                    await negotiation.execute_negotiation(data=params)
 
             # FLOW 2: New email - classify and route
             else:
@@ -197,20 +204,18 @@ async def message_processor(message: aio_pika.IncomingMessage):
                 # Classify the email
                 classifier = EmailClassifierOpenAI()
                 output = classifier.process_email(email_data)
-
-                classification = output["classification"]
-                cleaned_data = remove_none_values(output["extracted_details"])
-
-                logger.info(f"Classification: {classification}")
-                logger.info(f"Extracted fields: {list(cleaned_data.keys())}")
+                classification = output.get("classification")
+                cleaned_data = remove_none_values(output.get("extracted_details", {}))
 
                 # Route to appropriate handler
                 actions = {
-                    EMAIL_CLASSIFICATION.LOAD_OFFER_NEGOTIATION.value: lambda: negotiation.execute_negotiation(data=params),
+                    EMAIL_CLASSIFICATION.LOAD_OFFER_NEGOTIATION.value:
+                        lambda: multi_intent_negotiation.execute_negotiation(data=params) if config.MULTI_INTENT_ENABLED
+                        else negotiation.execute_negotiation(data=params),
                     EMAIL_CLASSIFICATION.LOAD_OFFER.value: lambda: load_board.create_load_offer(
                         tenant_id=email_data["tenantId"], data=cleaned_data),
                     EMAIL_CLASSIFICATION.LOAD.value: lambda: load_board.create_load(
-                        tenant_id=email_data["tenantId"], data=output["extracted_details"]),
+                        tenant_id=email_data["tenantId"], data=output.get("extracted_details", {})),
                     EMAIL_CLASSIFICATION.BROKER_SETUP.value: lambda: logger.info("Broker setup email - requires manual handling"),
                 }
 

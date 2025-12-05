@@ -1,0 +1,43 @@
+Refactoring Summary:
+
+1.  **Created `core/utils.py`**: A new file was created to house utility functions.
+2.  **Created `extract_price` function**: The price extraction logic, originally a method `_extract_price` in the `NegotiationOrchestrator` and part of a `PriceExtractor` class, was moved to a standalone function `extract_price` in `core/utils.py`. The function is designed to parse various price formats from text.
+3.  **Updated `services/negotiation_orchestrator.py`**:
+    *   The now-redundant `PriceExtractor` class was removed.
+    *   The `negotiation_orchestrator.py` now imports `extract_price` from `core.utils`.
+    *   All calls to the old price extraction method have been replaced with calls to the new `extract_price` utility function.
+4.  **Deleted `services/negotiation.py`**: The file `services/negotiation.py` was deleted as it was deemed redundant.
+5.  **Updated `actions/negotiation.py`**: The import of `NegotiationService` from the deleted `services/negotiation.py` was removed to prevent errors. The instantiation of the service was also removed.
+
+=== Parallel Multi-Intent System ===
+
+To safely test and validate the new, more advanced multi-intent email processing logic without disrupting the current system, a parallel workflow has been created. This allows you to switch between the original single-intent classifier and the new multi-intent extractor using a feature flag.
+
+1.  **New Files Created:**
+    *   `services/multi_intent_extractor.py`: A new service that analyzes an email and extracts a list of *all* intents (e.g., a question and a counter-offer in the same message).
+    *   `services/multi_intent_orchestrator.py`: A new orchestrator designed to handle a list of intents sequentially, ensuring a logical and complete response.
+    *   `actions/multi_intent_negotiation.py`: The action file that ties the new services together to execute the multi-intent negotiation flow.
+
+2.  **Feature Flag (`config.py`):**
+    *   A new setting, `MULTI_INTENT_ENABLED`, has been added to the `AppConfig` class.
+    *   You can set this in your environment variables. Set it to `True` to use the new multi-intent system or `False` to use the original single-intent system. It defaults to `True`.
+
+3.  **Conditional Logic (`main.py`):**
+    *   The main message processor now checks the `MULTI_INTENT_ENABLED` flag.
+    *   If enabled, it routes negotiation emails to the `MultiIntentNegotiationAction`.
+    *   If disabled, it uses the original `NegotiationAction`.
+
+This setup allows you to easily compare the performance of both systems in a real-world environment. Once you are confident that the new multi-intent system is superior, you can safely remove the old files and the conditional logic.
+
+=== Code Quality and Consistency Refinements ===
+
+To align with the project's existing architectural patterns and improve overall code quality, the following refinements have been made to the new multi-intent services:
+
+1.  **Corrected Import (`services/multi_intent_orchestrator.py`):**
+    *   Fixed a critical "Unknown import symbol" error by adding the proper import for `NegotiationState` (`from schemas.negotiation import NegotiationState`). This ensures the orchestrator correctly references its data schema.
+
+2.  **Standardized OpenAI Client Usage (`services/multi_intent_extractor.py`):**
+    *   The service was refactored to use the project's existing `get_openai_client()` factory function instead of creating its own instance.
+    *   This maintains a consistent pattern for API client instantiation, making the code more predictable and easier to manage.
+
+These changes address the initial inconsistencies and reflect a more careful, senior-level approach to integrating new features into an existing codebase.

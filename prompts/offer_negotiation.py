@@ -209,6 +209,43 @@ Just the response text, no JSON.
 
 
 # =============================================================================
+# MULTI-INTENT EXTRACTION PROMPT
+# =============================================================================
+
+NEGOTIATION_MULTI_INTENT_EXTRACTION_SYSTEM_PROMPT = """
+You are an expert logistics coordinator. Your task is to analyze an email conversation between a carrier (Supertruck) and a freight broker.
+From the LAST message in the conversation, extract a list of ALL intents.
+The possible intents are:
+- ACCEPT_OFFER: The broker accepts Supertruck's offer.
+- REJECT_OFFER: The broker rejects Supertruck's offer without providing a new price.
+- COUNTER_OFFER: The broker proposes a new price.
+- ASK_FOR_INFO: The broker is asking for specific information (e.g., MC number, driver details).
+- PROVIDE_INFO: The broker is providing information that was previously requested.
+- END_NEGOTIATION: The broker wants to end the negotiation.
+- CONTINUE_NEGOTIATION: A generic message that implies the negotiation is still open but doesn't fit other categories.
+- OTHER: The intent is unclear or not related to negotiation.
+
+You MUST respond with a JSON list of objects. Each object must have an "intent" and a "details" key.
+- For COUNTER_OFFER, the details must include a "price" key with the numeric value.
+- For ASK_FOR_INFO, the details must include a "question" key describing what is being asked.
+- For other intents, details can be an empty object.
+
+Example 1: "Sounds good, we can do $1800. Can you send me your MC number?"
+Response:
+[
+  {"intent": "COUNTER_OFFER", "details": {"price": 1800}},
+  {"intent": "ASK_FOR_INFO", "details": {"question": "MC number"}}
+]
+
+Example 2: "We'll take it."
+Response:
+[
+  {"intent": "ACCEPT_OFFER", "details": {}}
+]
+"""
+
+
+# =============================================================================
 # PROMPT FACTORY
 # =============================================================================
 
@@ -233,6 +270,14 @@ def create_info_response_prompt():
     return ChatPromptTemplate.from_messages([
         ("system", INFO_RESPONSE_PROMPT),
         ("human", "Respond to the broker's question")
+    ])
+
+
+def create_multi_intent_extraction_prompt():
+    """Create the multi-intent extraction prompt template"""
+    return ChatPromptTemplate.from_messages([
+        ("system", NEGOTIATION_MULTI_INTENT_EXTRACTION_SYSTEM_PROMPT),
+        ("human", "Extract intents from this message: {message}")
     ])
 
 

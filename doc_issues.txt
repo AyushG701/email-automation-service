@@ -1,0 +1,770 @@
+================================================================================
+EMAIL AUTOMATION SERVICE - COMPLETE CODE ANALYSIS & ISSUES DOCUMENT
+================================================================================
+Generated: December 2025
+Purpose: Code connections map, improvement areas, and potential issues
+
+================================================================================
+SECTION 1: FILE CONNECTION MAP (How Files Are Connected)
+================================================================================
+
+1.1 MAIN ENTRY POINT: main.py
+     |_ IMPORTS FROM:
+     |    |_ core/rabbitmq.py (RabbitMQManager)
+     |    |_ core/auth_client.py (AuthApiClient)
+     |    |_ models/email.py (EmailMessage)
+     |    |_ constant/enum.py (RMQEnum, EMAIL_CLASSIFICATION)
+     |    |_ config.py (AppConfig)
+     |    |_ services/email_classifier.py (EmailClassifierOpenAI)
+     |    |_ integration/supertruck.py (SuperTruck)
+     |    |_ integration/load_board.py (LoadBoard)
+     |    |_ actions/negotiation.py (NegotiationAction)
+     |    |_ actions/multi_intent_negotiation.py (MultiIntentNegotiationAction)
+     |    _ __ api/v1/negotiation.py (NegotiationController)
+     |
+     _ __ CALLS TO:
+         |_ message_processor() -> routes to negotiation.execute_negotiation()
+         |                       -> routes to multi_intent_negotiation.execute_negotiation()
+         |                       -> routes to load_board.create_load_offer()
+         |                       -> routes to load_board.create_load()
+         _ __ supertruck.find_email_log()
+
+--------------------------------------------------------------------------------
+
+1.2 SINGLE-INTENT FLOW: actions/negotiation.py
+     |_ IMPORTS FROM:
+     |    |_ integration/supertruck.py (SuperTruck)
+     |    |_ integration/load_board.py (LoadBoard)
+     |    |_ integration/geo_code.py (GeocodingService)
+     |    |_ services/email_intent_classifier.py (IntentClassifierService)
+     |    |_ services/negotiation_orchestrator.py (NegotiationOrchestrator, NegotiationMetadata)
+     |    |_ services/information_seek.py (InformationSeeker) - NOTE: WRONG IMPORT!
+     |    |_ services/load_info_seeker.py (LoadInfoSeekerOpenAI)
+     |    |_ services/bid_calculator.py (FreightBidCalculator)
+     |    _ __ constant/enum.py (Load_Bid_Email_Intent, LOAD_NEGOTIATION_DIRECTION, BIDDING_TYPE)
+     |
+     _ __ CALLS TO:
+         |_ supertruck.find_carrier_by_email()
+         |_ supertruck.get_bid()
+         |_ supertruck.negotiate() - saves with metadata
+         |_ supertruck.update_bid()
+         |_ load_board.get_load_offer_by_id()
+         |_ load_board.update_load_offer()
+         |_ distance.calculate_distance()
+         |_ calculator.calculate_bid()
+         _ __ orchestrator.process_message()
+
+--------------------------------------------------------------------------------
+
+1.3 MULTI-INTENT FLOW: actions/multi_intent_negotiation.py
+     |_ IMPORTS FROM:
+     |    |_ services/multi_intent_orchestrator.py (MultiIntentOrchestrator)
+     |    |_ services/conversation.py (ConversationService)
+     |    |_ schemas/negotiation.py (NegotiationState, NegotiationStrategy)
+     |    _ __ integration/supertruck.py (SuperTruck)
+     |
+     _ __ CALLS TO:
+         |_ conversation_service.get_conversation()
+         |_ conversation_service.format_chat_history()
+         |_ conversation_service.add_message_and_update_state()
+         |_ orchestrator.process_email()
+         _ __ supertruck.send_reply() - NOTE: METHOD DOESN'T EXIST!
+
+--------------------------------------------------------------------------------
+
+1.4 ORCHESTRATOR: services/negotiation_orchestrator.py
+     |_ IMPORTS FROM:
+     |    |_ core/utils.py (extract_price)
+     |    _ __ openai (OpenAI client)
+     |
+     |_ CONTAINS:
+     |    |_ ConversationState (Enum)
+     |    |_ MessageIntent (Enum)
+     |    |_ NegotiationAction (Enum)
+     |    |_ NegotiationMetadata (dataclass)
+     |    |_ ConversationContext (dataclass)
+     |    |_ ClassificationResult (dataclass)
+     |    |_ NegotiationResult (dataclass)
+     |    |_ ConversationStateBuilder (class)
+     |    |_ ContextAwareClassifier (class)
+     |    |_ NegotiationStrategy (class)
+     |    |_ ResponseGenerator (class)
+     |    _ __ NegotiationOrchestrator (class)
+     |
+     _ __ CALLS TO:
+         _ __ services/information_seek.py (InformationSeeker)
+
+--------------------------------------------------------------------------------
+
+1.5 MULTI-INTENT ORCHESTRATOR: services/multi_intent_orchestrator.py
+     |_ IMPORTS FROM:
+     |    |_ schemas/negotiation.py (NegotiationState)
+     |    |_ services/multi_intent_extractor.py (MultiIntentExtractor, NegotiationIntent)
+     |    |_ services/bid_calculator.py (FreightBidCalculator)
+     |    |_ services/information_seek.py (InformationSeeker)
+     |    _ __ core/utils.py (extract_price)
+     |
+     _ __ CALLS TO:
+         |_ intent_extractor.extract_intents()
+         |_ bid_calculator.calculate_next_bid() - NOTE: METHOD DOESN'T EXIST!
+         _ __ info_seeker.get_answer() - NOTE: METHOD DOESN'T EXIST!
+
+--------------------------------------------------------------------------------
+
+1.6 MULTI-INTENT EXTRACTOR: services/multi_intent_extractor.py
+     |_ IMPORTS FROM:
+     |    |_ core/openai.py (get_openai_client)
+     |    |___ prompts/offer_negotiation.py (NEGOTIATION_MULTI_INTENT_EXTRACTION_SYSTEM_PROMPT)
+     |
+     ___ CALLS TO:
+         ___ openai_client.chat_completion()
+
+--------------------------------------------------------------------------------
+
+1.7 INTEGRATION: integration/supertruck.py
+     |_ IMPORTS FROM:
+     |    |_ config.py (AppConfig)
+     |    _ __ core/auth_client.py (AuthApiClient)
+     |
+     _ __ PROVIDES:
+         |_ find_carrier_by_email()
+         |_ find_email_log()
+         |_ negotiate()
+         |_ update_bid()
+         |_ get_bid()
+         _ __ various legacy methods
+
+--------------------------------------------------------------------------------
+
+1.8 SERVICES DEPENDENCY TREE:
+
+    services/negotiation_orchestrator.py
+     _ __ Depends on: core/utils.py, openai, services/information_seek.py
+
+    services/multi_intent_orchestrator.py
+     _ __ Depends on: schemas/negotiation.py, services/multi_intent_extractor.py,
+                    services/bid_calculator.py, services/information_seek.py, core/utils.py
+
+    services/multi_intent_extractor.py
+     _ __ Depends on: core/openai.py, prompts/offer_negotiation.py
+
+    services/bid_calculator.py
+     _ __ Depends on: None (standalone)
+
+    services/information_seek.py
+     _ __ Depends on: openai
+
+    services/conversation.py (file seems incomplete/different)
+     _ __ Depends on: openai
+
+    services/load_info_seeker.py
+     _ __ Depends on: openai
+
+
+================================================================================
+SECTION 2: WHICH FILES TO PROVIDE FOR EACH IMPROVEMENT CASE
+================================================================================
+
+CASE A: IMPROVE NEGOTIATION LOGIC (Single-Intent Flow)
+------------------------------------------------------
+Minimum files needed:
+1. services/negotiation_orchestrator.py - Main logic
+2. actions/negotiation.py - Action handler
+3. schemas/negotiation.py - Data models
+4. constant/enum.py - Intent enums
+
+Optional context:
+- core/utils.py (price extraction)
+- services/bid_calculator.py (pricing logic)
+
+
+CASE B: IMPROVE MULTI-INTENT PROCESSING
+------------------------------------------------------
+Minimum files needed:
+1. services/multi_intent_orchestrator.py - Main orchestrator
+2. services/multi_intent_extractor.py - Intent extraction
+3. actions/multi_intent_negotiation.py - Action handler
+4. schemas/negotiation.py - State models
+
+Optional context:
+- prompts/offer_negotiation.py (LLM prompts)
+- constant/enum.py (intent enums)
+
+
+CASE C: IMPROVE EMAIL CLASSIFICATION
+------------------------------------------------------
+Minimum files needed:
+1. services/email_classifier.py - Email classifier
+2. services/email_intent_classifier.py - Intent classifier
+3. constant/enum.py - Classification enums
+
+Optional context:
+- prompts/bid_prompt.py (classification prompts)
+
+
+CASE D: IMPROVE PRICE EXTRACTION/BIDDING
+------------------------------------------------------
+Minimum files needed:
+1. core/utils.py - Price extraction
+2. services/bid_calculator.py - Bid calculation
+3. services/negotiation_orchestrator.py (NegotiationStrategy class only)
+
+
+CASE E: IMPROVE INFORMATION HANDLING
+------------------------------------------------------
+Minimum files needed:
+1. services/information_seek.py - Q&A handler
+2. services/load_info_seeker.py - Load info extraction
+
+Optional context:
+- integration/supertruck.py (carrier data structure)
+
+
+CASE F: IMPROVE STATE MANAGEMENT
+------------------------------------------------------
+Minimum files needed:
+1. schemas/negotiation.py - State models
+2. services/negotiation_orchestrator.py (NegotiationMetadata, ConversationStateBuilder)
+3. services/conversation.py - Conversation service
+
+
+CASE G: IMPROVE MESSAGE FLOW/ROUTING
+------------------------------------------------------
+Minimum files needed:
+1. main.py - Message processor
+2. config.py - Feature flags
+3. actions/negotiation.py (execute_negotiation method signature)
+4. actions/multi_intent_negotiation.py (execute_negotiation method signature)
+
+
+================================================================================
+SECTION 3: CRITICAL ISSUES & BUGS
+================================================================================
+
+ISSUE #1: DUPLICATE NEGOTIATION EXECUTION (CRITICAL)
+-----------------------------------------------------
+FILE: main.py
+LINES: 192-196
+
+CODE:
+    if config.MULTI_INTENT_ENABLED:
+        logger.info("Using MULTI-INTENT negotiation flow")
+        await multi_intent_negotiation.execute_negotiation(data=params)
+    else:
+        logger.info("Using SINGLE-INTENT negotiation flow")
+        await negotiation.execute_negotiation(data=params)
+    await negotiation.execute_negotiation(data=params)  # <-- ALWAYS CALLED!
+
+PROBLEM: Line 196 calls execute_negotiation AGAIN regardless of MULTI_INTENT_ENABLED flag.
+This causes:
+- Double processing of every reply email
+- Double API calls to SuperTruck
+- Duplicate negotiation records
+- Potential state corruption
+
+FIX: Remove line 196 entirely.
+
+
+ISSUE #2: DUPLICATE ACTION DEFINITIONS (CRITICAL)
+-------------------------------------------------
+FILE: main.py
+LINES: 210-225
+
+CODE:
+    actions = {
+        EMAIL_CLASSIFICATION.LOAD_OFFER_NEGOTIATION.value:
+            lambda: multi_intent_negotiation.execute_negotiation(data=params) if config.MULTI_INTENT_ENABLED
+            else negotiation.execute_negotiation(data=params),
+        EMAIL_CLASSIFICATION.LOAD_OFFER.value: lambda: load_board.create_load_offer(
+            tenant_id=email_data["tenantId"], data=cleaned_data),
+        ...
+    }   EMAIL_CLASSIFICATION.LOAD_OFFER_NEGOTIATION.value: lambda: negotiation.execute_negotiation(data=params),
+        EMAIL_CLASSIFICATION.LOAD_OFFER.value: lambda: load_board.create_load_offer(
+            tenant_id=email_data["tenantId"], data=cleaned_data),
+        ...
+
+PROBLEM: The actions dictionary is defined twice with different content. This is a
+syntax error or copy-paste mistake. The second definition overwrites the first,
+meaning MULTI_INTENT_ENABLED flag is ignored for new emails.
+
+FIX: Remove the duplicate definition (lines 219-225).
+
+
+ISSUE #3: UNDEFINED VARIABLE (CRITICAL)
+---------------------------------------
+FILE: main.py
+LINE: 215, 228
+
+CODE:
+    EMAIL_CLASSIFICATION.LOAD_OFFER.value: lambda: load_board.create_load_offer(
+        tenant_id=email_data["tenantId"], data=cleaned_data),  # <-- cleaned_data undefined!
+
+PROBLEM: Variable `cleaned_data` is never defined before being used.
+Also, `classification` on line 228 is not defined.
+
+FIX: Define these variables or fix the logic:
+    cleaned_data = remove_none_values(output.get("extracted_details", {}))
+    classification = output.get("classification")
+
+
+ISSUE #4: MISSING METHOD - supertruck.send_reply() (CRITICAL)
+-------------------------------------------------------------
+FILE: actions/multi_intent_negotiation.py
+LINE: 76-81
+
+CODE:
+    await self.supertruck.send_reply(
+        tenant_id=data["tenant_id"],
+        thread_id=data["thread_Id"],
+        message_id=data["messageId"],
+        body=updated_state.suggested_response
+    )
+
+PROBLEM: The SuperTruck class does NOT have a send_reply() method.
+This will cause AttributeError when multi-intent flow tries to send response.
+
+FIX: Either:
+1. Add send_reply() method to integration/supertruck.py
+2. Use existing negotiate() method with negotiationDirection="outgoing"
+
+
+ISSUE #5: MISSING METHOD - bid_calculator.calculate_next_bid() (CRITICAL)
+-------------------------------------------------------------------------
+FILE: services/multi_intent_orchestrator.py
+LINES: 83, 101, 130
+
+CODE:
+    next_bid = self.bid_calculator.calculate_next_bid(self.state)
+
+PROBLEM: FreightBidCalculator has calculate_bid() (async), not calculate_next_bid().
+Different signature and return type.
+
+FIX: Either:
+1. Add calculate_next_bid() to FreightBidCalculator
+2. Change to: next_bid = await self.bid_calculator.calculate_bid(distance)
+
+
+ISSUE #6: MISSING METHOD - info_seeker.get_answer() (CRITICAL)
+--------------------------------------------------------------
+FILE: services/multi_intent_orchestrator.py
+LINE: 111
+
+CODE:
+    answer = self.info_seeker.get_answer(question)
+
+PROBLEM: InformationSeeker has ask() method, not get_answer().
+
+FIX: Change to: answer = self.info_seeker.ask(question=question)
+
+
+ISSUE #7: WRONG InformationSeeker INITIALIZATION (HIGH)
+-------------------------------------------------------
+FILE: services/multi_intent_orchestrator.py
+LINE: 24
+
+CODE:
+    self.info_seeker = InformationSeeker()
+
+PROBLEM: InformationSeeker requires `data` parameter (carrier data dict).
+Calling without data will fail.
+
+FILE: services/negotiation_orchestrator.py
+LINE: 978-979
+
+CODE:
+    seeker = InformationSeeker(data=carrier_info)
+    return seeker.ask(question=broker_message)
+
+This is correct usage, but multi_intent_orchestrator.py doesn't pass data.
+
+FIX: Pass carrier_info when initializing or restructure to pass data dynamically.
+
+
+ISSUE #8: TWO DIFFERENT InformationSeeker CLASSES (HIGH)
+--------------------------------------------------------
+FILES:
+- services/conversation.py (has InformationSeeker class)
+- services/information_seek.py (has InformationSeeker class)
+
+PROBLEM: Two different classes with same name but different implementations!
+- conversation.py version: No __init__ data param, hardcoded conversations
+- information_seek.py version: Requires data dict, dynamic
+
+This causes import confusion and bugs depending on which gets imported.
+
+FIX: Rename one class or consolidate into single implementation.
+
+
+ISSUE #9: HARDCODED CARRIER EMAIL (MEDIUM)
+------------------------------------------
+FILE: actions/negotiation.py
+LINE: 281-282
+
+CODE:
+    carrier = await supertruck.find_carrier_by_email(
+        tenant_id=tenant_id,
+        email="400dyforever@gmail.com"  # <-- HARDCODED!
+    )
+
+PROBLEM: Carrier email is hardcoded instead of using data["from"].
+All negotiations will query the same carrier regardless of sender.
+
+FIX: Change to: email=data["from"]
+
+
+ISSUE #10: ASYNC/SYNC MISMATCH (MEDIUM)
+---------------------------------------
+FILE: services/negotiation_orchestrator.py
+
+PROBLEM: NegotiationOrchestrator.process_message() is synchronous but called
+from async context. This blocks the event loop.
+
+Also, ContextAwareClassifier uses synchronous OpenAI calls.
+
+FIX: Make process_message() async or run in thread pool.
+
+
+ISSUE #11: SCHEMA MISMATCH - NegotiationState (MEDIUM)
+------------------------------------------------------
+FILE: schemas/negotiation.py
+
+PROBLEM: NegotiationState has `load_offer_id` as required field but
+multi_intent_negotiation.py creates state with `thread_id` instead.
+
+CODE in multi_intent_negotiation.py:
+    state = NegotiationState(
+        thread_id=data["thread_Id"],  # <-- Not in schema!
+        initial_ask_price=5000,
+        ...
+    )
+
+FIX: Update NegotiationState schema to include thread_id or fix initialization.
+
+
+ISSUE #12: MISSING IMPORT - json.search (CRITICAL)
+--------------------------------------------------
+FILE: services/multi_intent_extractor.py
+LINES: 327, 339
+
+CODE:
+    code_block_match = json.search(r'```(?:json)?\s*(.*?)\s*```', response, json.DOTALL)
+
+PROBLEM: `json.search` doesn't exist. Should be `re.search`.
+json module has no search method.
+
+FIX:
+1. Add `import re` at top
+2. Change `json.search` to `re.search`
+3. Change `json.DOTALL` to `re.DOTALL`
+
+
+ISSUE #13: FEATURE FLAG INCONSISTENCY (LOW)
+-------------------------------------------
+FILE: config.py
+
+PROBLEM: MULTI_INTENT_ENABLED defaults to True, but the multi-intent flow
+has multiple critical bugs (issues #4, #5, #6, #7).
+
+FIX: Set default to False until multi-intent issues are resolved:
+    MULTI_INTENT_ENABLED: bool = os.getenv("MULTI_INTENT_ENABLED", "False").lower() == "true"
+
+
+ISSUE #14: ERROR HANDLING SWALLOWS ERRORS (LOW)
+-----------------------------------------------
+FILE: main.py
+LINES: 236-250
+
+CODE:
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error: {e}")
+        return e  # <-- Returns error, doesn't raise
+
+PROBLEM: Errors are logged and returned but not raised, so the message
+appears "processed successfully" even on failure.
+
+FIX: Either raise the exception or handle it differently (nack the message).
+
+
+ISSUE #15: PRINT STATEMENTS IN PRODUCTION (LOW)
+-----------------------------------------------
+FILES: Multiple
+
+LOCATIONS:
+- integration/supertruck.py: lines 25, 35, 44, 71
+- services/bid_calculator.py: line 121
+- services/conversation.py: line 114
+
+PROBLEM: Using print() instead of logger for debugging output.
+These won't appear in production logs properly.
+
+FIX: Replace print() with logger.info() or logger.debug()
+
+
+================================================================================
+SECTION 4: POTENTIAL RUNTIME ISSUES
+================================================================================
+
+POTENTIAL ISSUE #1: RABBITMQ MESSAGE LOSS
+-----------------------------------------
+IF: RabbitMQ connection drops during message processing
+WHERE: core/rabbitmq.py, main.py
+CAUSE: Message is auto-acked when entering `async with message.process()`
+
+The current implementation acks the message at the START of processing.
+If processing fails, the message is lost.
+
+WOULD REQUIRE FILES TO FIX:
+- core/rabbitmq.py (change ack behavior)
+- main.py (add manual ack after success)
+
+
+POTENTIAL ISSUE #2: STATE CORRUPTION IN CONCURRENT REQUESTS
+-----------------------------------------------------------
+IF: Two emails arrive for same thread simultaneously
+WHERE: actions/negotiation.py, services/negotiation_orchestrator.py
+CAUSE: No locking mechanism for per-thread state
+
+Both requests read same state, process in parallel, then save.
+Second save overwrites first's state updates.
+
+WOULD REQUIRE FILES TO FIX:
+- actions/negotiation.py (add locking)
+- integration/supertruck.py (add optimistic locking on save)
+
+
+POTENTIAL ISSUE #3: OPENAI API TIMEOUT
+--------------------------------------
+IF: OpenAI API takes too long to respond
+WHERE: services/negotiation_orchestrator.py (ContextAwareClassifier)
+CAUSE: No timeout configured on OpenAI calls
+
+Could block RabbitMQ consumer indefinitely.
+
+WOULD REQUIRE FILES TO FIX:
+- services/negotiation_orchestrator.py (add timeout)
+- core/openai.py (add timeout config)
+
+
+POTENTIAL ISSUE #4: MEMORY LEAK IN received_messages
+----------------------------------------------------
+IF: Service runs for extended period
+WHERE: main.py, line 122
+
+CODE:
+    received_messages = []
+    ...
+    received_messages.append(json.loads(email_data_decode))
+
+This list grows indefinitely, never cleaned up.
+
+WOULD REQUIRE FILES TO FIX:
+- main.py (add cleanup or use bounded list)
+
+
+POTENTIAL ISSUE #5: PRICE EXTRACTION FALSE POSITIVES
+----------------------------------------------------
+IF: Email contains numbers that look like prices but aren't
+WHERE: core/utils.py (extract_price function)
+CAUSE: Regex too greedy, matches MC numbers, ZIP codes, dates
+
+Example: "MC 12345" might extract 12345 as price.
+
+WOULD REQUIRE FILES TO FIX:
+- core/utils.py (improve regex patterns)
+- services/negotiation_orchestrator.py (add validation)
+
+
+POTENTIAL ISSUE #6: INFINITE NEGOTIATION LOOP
+---------------------------------------------
+IF: Broker sends same price repeatedly
+WHERE: services/negotiation_orchestrator.py (NegotiationStrategy)
+CAUSE: No check for repeated identical offers
+
+System will counter indefinitely without detecting stalemate.
+
+WOULD REQUIRE FILES TO FIX:
+- services/negotiation_orchestrator.py (add stalemate detection)
+- schemas/negotiation.py (add repeated_offer_count field)
+
+
+================================================================================
+SECTION 5: ARCHITECTURE RECOMMENDATIONS
+================================================================================
+
+1. CONSOLIDATE ORCHESTRATORS
+   - Currently two orchestrators (single + multi intent) with divergent implementations
+   - Multi-intent has many bugs and missing methods
+   - Recommendation: Fix single-intent orchestrator, add multi-intent as feature flag later
+
+2. STANDARDIZE ERROR HANDLING
+   - Mix of raising exceptions, returning errors, logging and continuing
+   - Recommendation: Create common error handler, define retry vs fail strategy
+
+3. ADD INPUT VALIDATION
+   - Email data structure not validated before processing
+   - Recommendation: Use Pydantic models for all inputs, validate early
+
+4. IMPROVE LOGGING
+   - Replace print statements with structured logging
+   - Add request IDs for tracing
+   - Log state transitions explicitly
+
+5. ADD TESTING
+   - No test files visible in project
+   - Recommendation: Add unit tests for orchestrators, integration tests for flows
+
+6. DOCUMENT API CONTRACTS
+   - SuperTruck API responses not documented
+   - Add type hints for all API response shapes
+
+
+================================================================================
+SECTION 6: SINGLE-INTENT FLOW STATUS (WORKING)
+================================================================================
+
+The single-intent flow is FUNCTIONAL. Core components work correctly:
+
+WORKING COMPONENTS:
+- actions/negotiation.py - Executes negotiation with orchestrator
+- services/negotiation_orchestrator.py - Full state machine, intent classification
+- services/email_classifier.py - Email classification (load, load_offer, broker_setup, etc.)
+- services/load_info_seeker.py - Info extraction from broker messages
+- services/bid_calculator.py - Rate calculation
+- services/information_seek.py - Carrier info Q&A
+- integration/supertruck.py - API calls
+- integration/load_board.py - Load offer management
+- core/utils.py - Price extraction
+
+
+MINOR ISSUE: CLASSIFICATION VALUE MISMATCH
+------------------------------------------
+FILE: services/email_classifier.py vs constant/enum.py
+
+The classifier returns these values:
+- "load_offer"
+- "load"
+- "broker_setup_request"
+- "negotiation_bidding"
+- "covered_load"
+- "rate_confirmation"
+
+But EMAIL_CLASSIFICATION enum has:
+- LOAD = 'load'
+- LOAD_OFFER = 'load_offer'
+- LOAD_OFFER_NEGOTIATION = 'load_offer_bid'  <-- Different!
+- BROKER_SETUP = 'broker_setup'  <-- Different!
+
+This mismatch means:
+- "broker_setup_request" won't match BROKER_SETUP ('broker_setup')
+- "negotiation_bidding" won't match LOAD_OFFER_NEGOTIATION ('load_offer_bid')
+
+IMPACT: Low - new emails may fall to "unknown classification" handler
+STATUS: Can fix later if needed
+
+
+================================================================================
+SECTION 7: MULTI-INTENT FLOW STATUS (FIXED)
+================================================================================
+
+FIXES APPLIED (This Session):
+1. main.py:196 - Removed duplicate execute_negotiation call
+2. main.py:210-225 - Removed duplicate actions dict, added missing variables
+3. multi_intent_orchestrator.py - Added _calculate_next_bid(), _get_info_answer()
+4. multi_intent_extractor.py - Fixed json.search to re.search
+5. multi_intent_negotiation.py - Changed send_reply() to negotiate()
+6. schemas/negotiation.py - Added NegotiationStrategy, thread_id, made fields optional
+
+
+================================================================================
+SECTION 8: FUTURE IMPROVEMENTS (NOT CRITICAL - DO LATER)
+================================================================================
+
+8.1 RATE CONFIRMATION HANDLING
+------------------------------
+Currently: Classified but not processed
+Location: services/email_classifier.py returns "rate_confirmation"
+          main.py has no handler for it
+
+TODO:
+- Add EMAIL_CLASSIFICATION.RATE_CONFIRMATION enum
+- Add handler in main.py actions dict
+- Create rate confirmation processing service
+
+
+8.2 COVERED LOAD HANDLING
+-------------------------
+Currently: Classified but not processed
+Location: services/email_classifier.py returns "covered_load"
+
+TODO:
+- Add EMAIL_CLASSIFICATION.COVERED_LOAD enum
+- Add handler to mark load as covered/unavailable
+- Update bid status
+
+
+8.3 NEGOTIATION BIDDING (REPLY DETECTION)
+-----------------------------------------
+Currently: Uses inReplyTo field to detect replies
+Could improve: Classify "negotiation_bidding" emails even without inReplyTo
+
+TODO:
+- Add fallback classification for negotiation emails
+- Match by thread_id even without inReplyTo header
+
+
+8.4 BROKER SETUP HANDLING
+-------------------------
+Currently: Logs "requires manual handling"
+Location: main.py line 219
+
+TODO:
+- Create broker setup processing service
+- Auto-reply with carrier setup info
+- Track setup requests
+
+
+8.5 ASYNC ORCHESTRATOR
+----------------------
+Currently: NegotiationOrchestrator.process_message() is synchronous
+
+TODO:
+- Make async for better performance
+- Add timeout handling for OpenAI calls
+
+
+8.6 LOGGING IMPROVEMENTS
+------------------------
+Currently: Mix of print() and logger
+
+TODO:
+- Replace all print() with logger
+- Add structured logging
+- Add request tracing
+
+
+================================================================================
+SECTION 9: QUICK REFERENCE - FILES BY FLOW
+================================================================================
+
+SINGLE-INTENT NEGOTIATION:
+main.py -> actions/negotiation.py -> services/negotiation_orchestrator.py
+                                  -> integration/supertruck.py
+                                  -> integration/load_board.py
+                                  -> services/bid_calculator.py
+
+MULTI-INTENT NEGOTIATION:
+main.py -> actions/multi_intent_negotiation.py -> services/multi_intent_orchestrator.py
+                                               -> services/multi_intent_extractor.py
+                                               -> integration/supertruck.py
+
+EMAIL CLASSIFICATION:
+main.py -> services/email_classifier.py -> integration/load_board.py (for load/offer)
+
+INFO SEEKING:
+actions/negotiation.py -> services/load_info_seeker.py (extract info)
+                       -> services/information_seek.py (answer questions)
+
+
+================================================================================
+END OF DOCUMENT
+================================================================================
