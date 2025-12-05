@@ -24,8 +24,10 @@ class GeocodingService:
     # @staticmethod
 
     async def geocode_with_nominatim(self, address: str) -> Optional[Tuple[float, float]]:
+        if address is None:
+            return None
         try:
-            encoded_address = urllib.parse.quote(address)
+            encoded_address = urllib.parse.quote(address, safe='')
             url = f"https://nominatim.openstreetmap.org/search?q={encoded_address}&format=json&limit=1"
 
             headers = {
