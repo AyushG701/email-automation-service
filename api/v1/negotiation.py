@@ -262,6 +262,9 @@ class NegotiationController:
                     )
                     self.logger.info(
                         "Distance calculated")
+                    if not total_distance:
+                        raise ValueError("Could not calculate distance. Please check pickup and delivery locations.")
+                    
                     rate_calc = await calculator.calculate_bid(
                         float(total_distance["distance"]),
                         float(load_offer.get("requestedRate", 0))
