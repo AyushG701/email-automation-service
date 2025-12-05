@@ -123,7 +123,8 @@ class NegotiationAction:
                 raise ValueError("No current load offer found.")
 
             self.logger.info(f"Offer ID: {curr_offer.get('id')}")
-            self.logger.info(f"Confidence score: {curr_offer.get('loadConfidentialScore', 'N/A')}")
+            self.logger.info(
+                f"Confidence score: {curr_offer.get('loadConfidentialScore', 'N/A')}")
 
             # Extract information from broker's message
             extraction_result = self.info_seeker.extract_info_from_response(
@@ -132,10 +133,12 @@ class NegotiationAction:
                 None
             )
 
-            self.logger.info(f"Extraction: {extraction_result.get('extraction_successful', False)}")
+            self.logger.info(
+                f"Extraction: {extraction_result.get('extraction_successful', False)}")
 
             if not extraction_result.get('extraction_successful', False):
-                self.logger.warning("No information extracted from broker message")
+                self.logger.warning(
+                    "No information extracted from broker message")
                 return ProcessBrokerResponseResponse(
                     extraction_successful=False,
                     fields_extracted=[],
@@ -152,12 +155,16 @@ class NegotiationAction:
                 extraction_result.get('extracted_fields', {})
             )
 
-            self.logger.info(f"Updated fields: {list(extraction_result.get('extracted_fields', {}).keys())}")
+            self.logger.info(
+                f"Updated fields: {list(extraction_result.get('extracted_fields', {}).keys())}")
 
             # Check what's still missing
-            still_missing_info = self.info_seeker.identify_missing_fields(updated_load, "offer")
-            still_missing_critical = still_missing_info.get('missing_critical_fields', [])
-            can_proceed = still_missing_info.get('has_sufficient_info_for_negotiation', False)
+            still_missing_info = self.info_seeker.identify_missing_fields(
+                updated_load, "offer")
+            still_missing_critical = still_missing_info.get(
+                'missing_critical_fields', [])
+            can_proceed = still_missing_info.get(
+                'has_sufficient_info_for_negotiation', False)
 
             self.logger.info(f"Still missing: {still_missing_critical}")
             self.logger.info(f"Can proceed: {can_proceed}")
@@ -167,7 +174,8 @@ class NegotiationAction:
                 message = "Great! All critical information received. Ready to negotiate."
             else:
                 from services.load_info_seeker import FIELD_DESCRIPTIONS
-                missing_readable = [FIELD_DESCRIPTIONS.get(f, f) for f in still_missing_critical]
+                missing_readable = [FIELD_DESCRIPTIONS.get(
+                    f, f) for f in still_missing_critical]
                 message = f"Thanks for the info. I just need a few more details: {', '.join(missing_readable)}. Could you please provide them?"
 
             await load_board.update_load_offer(curr_offer["id"], updated_load)
@@ -309,26 +317,34 @@ class NegotiationAction:
             self.logger.info(f"Load offer found: {curr_offer.get('id')}")
             self.logger.info(f"Pickup: {curr_offer.get('pickupLocation')}")
             self.logger.info(f"Delivery: {curr_offer.get('deliveryLocation')}")
-            self.logger.info(f"Confidence score: {curr_offer.get('loadConfidentialScore')}")
+            self.logger.info(
+                f"Confidence score: {curr_offer.get('loadConfidentialScore')}")
 
             # Get conversation history (includes metadata from previous negotiations)
             conversation_history = currBid.get("negotiations", [])
-            self.logger.info(f"Conversation history: {len(conversation_history)} messages")
+            self.logger.info(
+                f"Conversation history: {len(conversation_history)} messages")
 
             # Log persisted state from last message
             persisted_state = self._get_persisted_state(conversation_history)
             self.logger.info(f"Persisted state from DB:")
-            self.logger.info(f"  - negotiationRound: {persisted_state['negotiationRound']}")
-            self.logger.info(f"  - infoExchangeCount: {persisted_state['infoExchangeCount']}")
-            self.logger.info(f"  - conversationState: {persisted_state['conversationState']}")
-            self.logger.info(f"  - lastCarrierPrice: ${persisted_state['lastCarrierPrice']}")
-            self.logger.info(f"  - lastBrokerPrice: ${persisted_state['lastBrokerPrice']}")
+            self.logger.info(
+                f"  - negotiationRound: {persisted_state['negotiationRound']}")
+            self.logger.info(
+                f"  - infoExchangeCount: {persisted_state['infoExchangeCount']}")
+            self.logger.info(
+                f"  - conversationState: {persisted_state['conversationState']}")
+            self.logger.info(
+                f"  - lastCarrierPrice: ${persisted_state['lastCarrierPrice']}")
+            self.logger.info(
+                f"  - lastBrokerPrice: ${persisted_state['lastBrokerPrice']}")
 
             bidding_type = currBid.get("biddingType")
 
             # Manual bids - save incoming but skip auto-response
             if bidding_type == BIDDING_TYPE.MANUAL.value:
-                self.logger.info('Manual bid - saving incoming, skipping auto-response')
+                self.logger.info(
+                    'Manual bid - saving incoming, skipping auto-response')
                 await supertruck.negotiate(tenant_id=tenant_id, data={
                     "rate": currBid.get("baseRate"),
                     "negotiationDirection": "incoming",
@@ -357,9 +373,11 @@ class NegotiationAction:
 
                 # If no rates set, calculate them
                 if min_rate <= 0 or max_rate <= 0:
-                    confidence_score = curr_offer.get("loadConfidentialScore", 0)
+                    confidence_score = curr_offer.get(
+                        "loadConfidentialScore", 0)
                     if confidence_score < 80:
-                        self.logger.info(f"Low confidence ({confidence_score}) - checking for info")
+                        self.logger.info(
+                            f"Low confidence ({confidence_score}) - checking for info")
 
                         info_check = await self.process_broker_response({
                             "broker_message": latest,
@@ -368,7 +386,8 @@ class NegotiationAction:
                         })
 
                         if len(info_check.still_missing_critical_fields) > 0:
-                            self.logger.info(f"Still need info: {info_check.still_missing_critical_fields}")
+                            self.logger.info(
+                                f"Still need info: {info_check.still_missing_critical_fields}")
 
                             # Increment info exchange count
                             new_info_count = persisted_state['infoExchangeCount'] + 1
@@ -410,7 +429,8 @@ class NegotiationAction:
                                 }
                             })
 
-                            self.logger.info(f"Info request sent with metadata: {info_check.message}")
+                            self.logger.info(
+                                f"Info request sent with metadata: {info_check.message}")
                             return
 
                         # Got enough info, update offer
@@ -421,15 +441,18 @@ class NegotiationAction:
                         curr_offer.get("pickupLocation", ""),
                         curr_offer.get("deliveryLocation", "")
                     )
-                    self.logger.info(f"Distance: {total_distance.get('distance')} miles")
+                    self.logger.info(
+                        f"Distance: {total_distance.get('distance')} miles")
 
                     rate_calc = await calculator.calculate_bid(
-                        float(total_distance.get("distance", 500))
+                        float(total_distance.get("distance", 500)),
+                        float(curr_offer.get("requestedRate", 0))
                     )
                     min_rate = rate_calc.min_rate
                     max_rate = rate_calc.max_rate
 
-                    self.logger.info(f"Calculated rates: ${min_rate} - ${max_rate}")
+                    self.logger.info(
+                        f"Calculated rates: ${min_rate} - ${max_rate}")
 
                     # Update bid with rates
                     await supertruck.update_bid(
@@ -471,10 +494,14 @@ class NegotiationAction:
                 # Get metadata to persist
                 metadata_dict = result.metadata.to_dict() if result.metadata else {}
                 self.logger.info(f"New metadata to persist:")
-                self.logger.info(f"  - negotiationRound: {metadata_dict.get('negotiationRound')}")
-                self.logger.info(f"  - infoExchangeCount: {metadata_dict.get('infoExchangeCount')}")
-                self.logger.info(f"  - conversationState: {metadata_dict.get('conversationState')}")
-                self.logger.info(f"  - messageType: {metadata_dict.get('messageType')}")
+                self.logger.info(
+                    f"  - negotiationRound: {metadata_dict.get('negotiationRound')}")
+                self.logger.info(
+                    f"  - infoExchangeCount: {metadata_dict.get('infoExchangeCount')}")
+                self.logger.info(
+                    f"  - conversationState: {metadata_dict.get('conversationState')}")
+                self.logger.info(
+                    f"  - messageType: {metadata_dict.get('messageType')}")
 
                 # ============================================================
                 # SAVE INCOMING MESSAGE WITH METADATA
@@ -547,6 +574,7 @@ class NegotiationAction:
         Legacy negotiation execution (kept for reference).
         Use execute_negotiation instead.
         """
-        self.logger.warning("Using legacy negotiation - consider using execute_negotiation instead")
+        self.logger.warning(
+            "Using legacy negotiation - consider using execute_negotiation instead")
         # Legacy code omitted - use execute_negotiation instead
         pass

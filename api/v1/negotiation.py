@@ -221,7 +221,8 @@ class NegotiationController:
                 self.logger.info(
                     "Distance calculated")
                 rate_calc = await calculator.calculate_bid(
-                    float(total_distance["distance"])
+                    float(total_distance["distance"]),
+                    float(load_offer.get("requestedRate", 0))
                 )
                 self.logger.info(
                     "Min & Max rate calculated")
@@ -262,7 +263,8 @@ class NegotiationController:
                     self.logger.info(
                         "Distance calculated")
                     rate_calc = await calculator.calculate_bid(
-                        float(total_distance["distance"])
+                        float(total_distance["distance"]),
+                        float(load_offer.get("requestedRate", 0))
                     )
                     self.logger.info(
                         "Min & Max rate calculated")

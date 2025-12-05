@@ -58,7 +58,11 @@ class FreightBidCalculator:
     using a safety multiplier based on location risk.
     """
 
-    def __init__(self, cost_per_mile: float = 2.00, default_profit_margin: float = 0.20, max_profit_margin: float = 0.50):
+    def __init__(self,
+                 cost_per_mile: float = 2.00,
+                 default_profit_margin: float = 0.20,
+                 max_profit_margin: float = 0.50,
+                 ):
         """
         Initialize the calculator with default values.
 
@@ -80,6 +84,7 @@ class FreightBidCalculator:
                             loaded_miles: int,
                             location_risk: LocationRisk = LocationRisk.HIGH_RISK,
                             profit_margin: Optional[float] = None,
+                            base_rate: int = None,
                             round_to: int = 10) -> BidResult:
         """
         Calculate a bid based on loaded miles and location risk.
@@ -115,6 +120,19 @@ class FreightBidCalculator:
         min_rate = self._round_up(calculated_bid, round_to)
         max_rate = self._round_up(max_bid, round_to)
 
+        # Step 5: Adjust for base rate if provided
+        if base_rate is not None:
+            if base_rate > min_rate:
+                # Calculate the difference to maintain the spread
+                rate_difference = max_rate - min_rate
+
+                # Set new min_rate as base_rate with profit applied
+                min_rate = self._round_up(base_rate * (1 + profit), round_to)
+
+                # Increase max_rate to maintain proportional spread
+                max_rate = self._round_up(
+                    base_rate * (1 + self.max_profit_margin), round_to)
+
         # Calculate actual profit metrics
         # expected_profit = final_bid - break_even
         # profit_margin_percent = (expected_profit / break_even) * 100
@@ -138,4 +156,3 @@ class FreightBidCalculator:
         """Round up to the nearest multiple of round_to"""
         import math
         return math.ceil(value / round_to) * round_to
-
