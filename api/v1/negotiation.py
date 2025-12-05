@@ -225,11 +225,10 @@ class NegotiationController:
         try:
             load_offer = await load_board.get_load_offer_by_id(id=payload.entity_id)
 
-            if (load_offer["loadConfidentialScore"] > 90):
+            if (load_offer["loadConfidentialScore"] > 85):
                 total_distance = await distance.calculate_distance(
                     load_offer["pickupLocation"],
-                    load_offer.get('dropoffLocation') or load_offer.get(
-                        'deliveryLocation')
+                    load_offer.get('deliveryLocation') or load_offer.get('deliveryLocation') 
                 )
                 self.logger.info(
                     "Distance calculated")
@@ -252,8 +251,7 @@ class NegotiationController:
                         'max_price': rate_calc.max_rate
                     }
                 )
-                self.logger.info(
-                    NegotiationResponse(
+                res = NegotiationResponse(
                         response=result.response,
                         proposed_price=str(
                             result.proposed_price) if result.proposed_price else None,
@@ -261,7 +259,8 @@ class NegotiationController:
                         min_price=rate_calc.min_rate,
                         max_price=rate_calc.max_rate
                         # negotiation_round=negotiation_round
-                    ))
+                    )
+                self.logger.info(f"Min & Max rate calculated {res}")
                 return NegotiationResponse(
                     response=result.response,
                     proposed_price=str(
@@ -309,16 +308,16 @@ class NegotiationController:
                     )
                     self.logger.info(
                         "Info checked and continue for conversation")
-                    self.logger.info(
-                        NegotiationResponse(
-                            response=result.response,
-                            proposed_price=str(
-                                result.proposed_price) if result.proposed_price else None,
-                            status=result.status,
-                            min_price=rate_calc.min_rate,
-                            max_price=rate_calc.max_rate
-                            # negotiation_round=negotiation_round
-                        ))
+                    res = NegotiationResponse(
+                        response=result.response,
+                        proposed_price=str(
+                            result.proposed_price) if result.proposed_price else None,
+                        status=result.status,
+                        min_price=rate_calc.min_rate,
+                        max_price=rate_calc.max_rate
+                        # negotiation_round=negotiation_round
+                    )
+                    self.logger.info(f"Min & Max rate calculated {res}")
                     # ASK The detail with broker
                     # Return response
                     return NegotiationResponse(

@@ -509,8 +509,8 @@ class NegotiationAction:
                             # Calculate distance and rates
                             total_distance = await distance.calculate_distance(
                                 curr_offer.get("pickupLocation", ""),
-                                curr_offer.get("dropoffLocation") or curr_offer.get(
-                                    "deliveryLocation", "")
+                                curr_offer.get("deliveryLocation") or curr_offer.get(
+                                    "dropoffLocation", "")                                    
                             )
                             if not total_distance or total_distance.get("distance") is None:
                                 self.logger.error(
