@@ -516,9 +516,12 @@ class NegotiationAction:
                             self.logger.info(
                                 f"Distance: {total_distance.get('distance')} miles")
 
+                            # Use the latest rate from the broker for calculation, otherwise fallback to requestedRate
+                            rate_for_calc = curr_offer.get("rate") or curr_offer.get("requestedRate")
+
                             rate_calc = await calculator.calculate_bid(
                                 float(total_distance.get("distance")),
-                                float(curr_offer.get("requestedRate") or 0)
+                                float(rate_for_calc or 0)
                             )
                             min_rate = rate_calc.min_rate
                             max_rate = rate_calc.max_rate
@@ -526,14 +529,14 @@ class NegotiationAction:
                             self.logger.info(
                                 f"Calculated rates: ${min_rate} - ${max_rate}")
 
-                            # Update bid with rates
+                            # Update bid with calculated min and max rates.
+                            # baseRate should not be updated here, it's part of the actual negotiation offer.
                             await supertruck.update_bid(
                                 tenant_id=tenant_id,
                                 bid_id=currBid["id"],
                                 data={
                                     "minRate": min_rate,
-                                    "maxRate": max_rate,
-                                    "baseRate": curr_offer.get("requestedRate", min_rate)
+                                    "maxRate": max_rate
                                 }
                             )
                         except Exception as e:

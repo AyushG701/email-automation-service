@@ -250,7 +250,7 @@ class NegotiationController:
                         'max_price': rate_calc.max_rate
                     }
                 )
-                return NegotiationResponse(
+                final_response= NegotiationResponse(
                     response=result.response,
                     proposed_price=str(
                         result.proposed_price) if result.proposed_price else None,
@@ -259,6 +259,8 @@ class NegotiationController:
                     max_price=rate_calc.max_rate
                     # negotiation_round=negotiation_round
                 )
+                print(final_response)
+                return final_response
             else:
                 info_check = await self.process_broker_response({
                     "broker_message": load_offer["offerEmail"],
@@ -298,7 +300,7 @@ class NegotiationController:
                         "Info checked and continue for conversation")
                     # ASK The detail with broker
                     # Return response
-                    return NegotiationResponse(
+                    final_response= NegotiationResponse(
                         response=result.response,
                         proposed_price=str(
                             result.proposed_price) if result.proposed_price else None,
@@ -307,6 +309,8 @@ class NegotiationController:
                         max_price=rate_calc.max_rate
                         # negotiation_round=negotiation_round
                     )
+                    print(final_response)
+                    return final_response
 
                 else:
                     self.logger.info(
