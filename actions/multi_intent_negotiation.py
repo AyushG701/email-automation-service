@@ -92,26 +92,33 @@ class MultiIntentNegotiationAction:
             full_chat_history = f"{chat_history_str}\n\nBroker: {latest}".strip()
 
             # Process the email and get updated state
-            result_state = orchestrator.process_email(email_body=latest, chat_history=full_chat_history)
+            result = orchestrator.process_email(
+                email_body=latest,
+                chat_history=conversation_history,
+                load_offer=curr_offer,
+                pricing={"min_price": currBid.get("minRate", 0), "max_price": currBid.get("maxRate", 0)}
+            )
 
             # Log incoming negotiation
             await supertruck.negotiate(tenant_id=tenant_id, data={
-                "rate": result_state.last_broker_price or currBid.get("baseRate"),
+                "rate": result.last_broker_price or currBid.get("baseRate"),
                 "negotiationDirection": "incoming",
                 "bidId": currBid["id"],
                 "negotiationRawEmail": latest,
                 "messageId": message_id,
+                "references": data.get("references", []),
+                "inReplyTo": data.get("inReplyTo") or message_id,
                 "metadata": {
-                    "negotiation_round": result_state.negotiation_round,
+                    "negotiation_round": result.negotiation_round,
                     "timestamp": datetime.utcnow().isoformat()
                 }
             })
 
             # Determine negotiation status
             status = "active"
-            if not result_state.is_negotiation_active:
+            if not result.is_negotiation_active:
                 # Check if it was accepted or rejected based on response
-                if result_state.suggested_response and "accept" in result_state.suggested_response.lower():
+                if result.suggested_response and "accept" in result.suggested_response.lower():
                     status = "accepted"
                 else:
                     status = "rejected"
@@ -122,14 +129,14 @@ class MultiIntentNegotiationAction:
                 await supertruck.update_bid(tenant_id=tenant_id, bid_id=currBid["id"], data={"isAcceptedByBroker": False, "status": "rejected"})
 
             # Send outgoing response if needed
-            if result_state.response_needed and result_state.suggested_response:
+            if result.response_needed and result.suggested_response:
                 await supertruck.negotiate(tenant_id=tenant_id, data={
-                    "rate": result_state.last_supertruck_price or currBid.get("baseRate"),
+                    "rate": result.last_supertruck_price or currBid.get("baseRate"),
                     "negotiationDirection": "outgoing",
                     "bidId": currBid["id"],
-                    "negotiationRawEmail": result_state.suggested_response,
+                    "negotiationRawEmail": result.suggested_response,
                     "metadata": {
-                        "negotiation_round": result_state.negotiation_round,
+                        "negotiation_round": result.negotiation_round,
                         "timestamp": datetime.utcnow().isoformat()
                     }
                 })

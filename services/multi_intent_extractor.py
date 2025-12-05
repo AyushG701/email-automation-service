@@ -445,13 +445,19 @@ class MultiIntentExtractor:
     )
     def _call_llm(self, chat_history: str) -> str:
         """Call LLM with retry logic"""
-        response = self.openai_client.chat_completion(
-            system_prompt=NEGOTIATION_MULTI_INTENT_EXTRACTION_SYSTEM_PROMPT,
-            user_prompt=chat_history,
+        response = self.openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": NEGOTIATION_MULTI_INTENT_EXTRACTION_SYSTEM_PROMPT,
+                },
+                {"role": "user", "content": chat_history},
+            ],
             temperature=self.config.TEMPERATURE,
-            max_tokens=self.config.MAX_TOKENS
+            max_tokens=self.config.MAX_TOKENS,
         )
-        return response
+        return response.choices[0].message.content
     
     def extract_intents(
         self, 

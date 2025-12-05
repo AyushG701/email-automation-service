@@ -23,7 +23,7 @@ class MultiIntentOrchestrator:
         self.bid_calculator = BidCalculator()
         self.carrier_info = carrier_info or {}
 
-    def process_email(self, email_body: str, chat_history: str) -> NegotiationState:
+    def process_email(self, email_body: str, chat_history: str, load_offer: dict, pricing: dict) -> NegotiationState:
         """
         Main entry point for processing an incoming email.
 
@@ -53,7 +53,8 @@ class MultiIntentOrchestrator:
 
     def _extract_intents(self, chat_history: str) -> List[Dict[str, Any]]:
         """Extracts a list of intents from the chat history."""
-        return self.intent_extractor.extract_intents(chat_history)
+        intent_extraction_result = self.intent_extractor.extract_intents(chat_history)
+        return [intent.dict() for intent in intent_extraction_result.intents]
 
     def _get_intent_handler(self, intent_name: str):
         """Maps an intent name to its corresponding handler method."""
