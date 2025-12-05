@@ -158,9 +158,10 @@ class NegotiationController:
                     curr_offer, "offer")
                 still_missing_critical = missing_info.get(
                     'missing_critical_fields', [])
-                
+
                 from services.load_info_seeker import FIELD_DESCRIPTIONS
-                missing_readable = [FIELD_DESCRIPTIONS.get(f, f) for f in still_missing_critical]
+                missing_readable = [FIELD_DESCRIPTIONS.get(
+                    f, f) for f in still_missing_critical]
                 message = f"Thanks for your interest. To give you a quote, I need a few more details: {', '.join(missing_readable)}. Could you please provide them?" if missing_readable else "Thanks for your interest. Please provide the load details so I can give you a quote."
 
                 return ProcessBrokerResponseResponse(
@@ -227,7 +228,8 @@ class NegotiationController:
             if (load_offer["loadConfidentialScore"] > 90):
                 total_distance = await distance.calculate_distance(
                     load_offer["pickupLocation"],
-                    load_offer.get('dropoffLocation') or load_offer.get('deliveryLocation')
+                    load_offer.get('dropoffLocation') or load_offer.get(
+                        'deliveryLocation')
                 )
                 self.logger.info(
                     "Distance calculated")
@@ -250,7 +252,17 @@ class NegotiationController:
                         'max_price': rate_calc.max_rate
                     }
                 )
-                final_response= NegotiationResponse(
+                self.logger.info(
+                    NegotiationResponse(
+                        response=result.response,
+                        proposed_price=str(
+                            result.proposed_price) if result.proposed_price else None,
+                        status=result.status,
+                        min_price=rate_calc.min_rate,
+                        max_price=rate_calc.max_rate
+                        # negotiation_round=negotiation_round
+                    ))
+                return NegotiationResponse(
                     response=result.response,
                     proposed_price=str(
                         result.proposed_price) if result.proposed_price else None,
@@ -259,8 +271,6 @@ class NegotiationController:
                     max_price=rate_calc.max_rate
                     # negotiation_round=negotiation_round
                 )
-                print(final_response)
-                return final_response
             else:
                 info_check = await self.process_broker_response({
                     "broker_message": load_offer["offerEmail"],
@@ -276,8 +286,9 @@ class NegotiationController:
                     self.logger.info(
                         "Distance calculated")
                     if not total_distance:
-                        raise ValueError("Could not calculate distance. Please check pickup and delivery locations.")
-                    
+                        raise ValueError(
+                            "Could not calculate distance. Please check pickup and delivery locations.")
+
                     rate_calc = await calculator.calculate_bid(
                         float(total_distance["distance"]),
                         float(load_offer.get("requestedRate", 0))
@@ -298,9 +309,19 @@ class NegotiationController:
                     )
                     self.logger.info(
                         "Info checked and continue for conversation")
+                    self.logger.info(
+                        NegotiationResponse(
+                            response=result.response,
+                            proposed_price=str(
+                                result.proposed_price) if result.proposed_price else None,
+                            status=result.status,
+                            min_price=rate_calc.min_rate,
+                            max_price=rate_calc.max_rate
+                            # negotiation_round=negotiation_round
+                        ))
                     # ASK The detail with broker
                     # Return response
-                    final_response= NegotiationResponse(
+                    return NegotiationResponse(
                         response=result.response,
                         proposed_price=str(
                             result.proposed_price) if result.proposed_price else None,
@@ -309,8 +330,6 @@ class NegotiationController:
                         max_price=rate_calc.max_rate
                         # negotiation_round=negotiation_round
                     )
-                    print(final_response)
-                    return final_response
 
                 else:
                     self.logger.info(

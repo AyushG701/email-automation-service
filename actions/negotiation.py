@@ -316,7 +316,8 @@ class NegotiationAction:
 
             self.logger.info(f"Load offer found: {curr_offer.get('id')}")
             self.logger.info(f"Pickup: {curr_offer.get('pickupLocation')}")
-            self.logger.info(f"Delivery: {curr_offer.get('dropoffLocation') or curr_offer.get('deliveryLocation')}")
+            self.logger.info(
+                f"Delivery: {curr_offer.get('dropoffLocation') or curr_offer.get('deliveryLocation')}")
             self.logger.info(
                 f"Confidence score: {curr_offer.get('loadConfidentialScore')}")
 
@@ -393,7 +394,8 @@ class NegotiationAction:
                         ) and '?' in latest
 
                         if is_asking_carrier_info:
-                            self.logger.info("Broker is asking for carrier info - responding directly")
+                            self.logger.info(
+                                "Broker is asking for carrier info - responding directly")
 
                             # Use InformationSeeker to answer carrier info questions
                             info_seeker = InformationSeeker(data=carrier)
@@ -439,7 +441,8 @@ class NegotiationAction:
                                 }
                             })
 
-                            self.logger.info(f"Carrier info response sent: {carrier_response}")
+                            self.logger.info(
+                                f"Carrier info response sent: {carrier_response}")
                             return
 
                         # If not asking carrier info, try to extract LOAD info from broker message
@@ -506,10 +509,12 @@ class NegotiationAction:
                             # Calculate distance and rates
                             total_distance = await distance.calculate_distance(
                                 curr_offer.get("pickupLocation", ""),
-                                curr_offer.get("dropoffLocation") or curr_offer.get("deliveryLocation", "")
+                                curr_offer.get("dropoffLocation") or curr_offer.get(
+                                    "deliveryLocation", "")
                             )
                             if not total_distance or total_distance.get("distance") is None:
-                                self.logger.error("Distance calculation failed, one of the locations might be invalid for load offer.")
+                                self.logger.error(
+                                    "Distance calculation failed, one of the locations might be invalid for load offer.")
                                 raise ValueError(
                                     "Distance calculation failed, cannot proceed.")
 
@@ -517,7 +522,8 @@ class NegotiationAction:
                                 f"Distance: {total_distance.get('distance')} miles")
 
                             # Use the latest rate from the broker for calculation, otherwise fallback to requestedRate
-                            rate_for_calc = curr_offer.get("rate") or curr_offer.get("requestedRate")
+                            rate_for_calc = curr_offer.get(
+                                "rate") or curr_offer.get("requestedRate")
 
                             rate_calc = await calculator.calculate_bid(
                                 float(total_distance.get("distance")),
@@ -539,13 +545,16 @@ class NegotiationAction:
                                     "maxRate": max_rate
                                 }
                             )
+                            self.logger.info(
+                                f"Bid has been updated with {max_rate} & {min_rate}")
                         except Exception as e:
                             self.logger.error(f"Rate calculation failed: {e}")
                             # Fallback to existing rates if calculation fails
                             min_rate = float(currBid.get("minRate") or 0)
                             max_rate = float(currBid.get("maxRate") or 0)
                             if not min_rate or not max_rate:
-                                self.logger.error("No valid rates found, cannot proceed with negotiation.")
+                                self.logger.error(
+                                    "No valid rates found, cannot proceed with negotiation.")
                                 return
                 # ============================================================
                 # USE ORCHESTRATOR - Gets metadata from DB, returns new metadata
@@ -555,7 +564,8 @@ class NegotiationAction:
                 self.logger.info("="*60)
 
                 # Use saved sweet_spot or calculate if not available
-                effective_sweet_spot = sweet_spot if sweet_spot > 0 else (min_rate + (max_rate - min_rate) * 0.6)
+                effective_sweet_spot = sweet_spot if sweet_spot > 0 else (
+                    min_rate + (max_rate - min_rate) * 0.6)
 
                 result = self.orchestrator.process_message(
                     broker_message=latest,
