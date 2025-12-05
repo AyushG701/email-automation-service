@@ -82,9 +82,9 @@ class FreightBidCalculator:
 
     async def calculate_bid(self,
                             loaded_miles: int,
+                            base_rate: int = None,
                             location_risk: LocationRisk = LocationRisk.HIGH_RISK,
                             profit_margin: Optional[float] = None,
-                            base_rate: int = None,
                             round_to: int = 10) -> BidResult:
         """
         Calculate a bid based on loaded miles and location risk.
