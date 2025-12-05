@@ -316,7 +316,7 @@ class NegotiationAction:
 
             self.logger.info(f"Load offer found: {curr_offer.get('id')}")
             self.logger.info(f"Pickup: {curr_offer.get('pickupLocation')}")
-            self.logger.info(f"Delivery: {curr_offer.get('dropoffLocation')}")
+            self.logger.info(f"Delivery: {curr_offer.get('dropoffLocation') or curr_offer.get('deliveryLocation')}")
             self.logger.info(
                 f"Confidence score: {curr_offer.get('loadConfidentialScore')}")
 
@@ -500,35 +500,50 @@ class NegotiationAction:
                         # Got enough info, update offer
                         curr_offer = info_check.updated_load_offer
 
-                    # Calculate distance and rates
-                    total_distance = await distance.calculate_distance(
-                        curr_offer.get("pickupLocation", ""),
-                        curr_offer.get("dropoffLocation", "")
-                    )
-                    self.logger.info(
-                        f"Distance: {total_distance.get('distance')} miles")
+                    # If rates are not set, calculate them
+                    if not min_rate or not max_rate:
+                        try:
+                            # Calculate distance and rates
+                            total_distance = await distance.calculate_distance(
+                                curr_offer.get("pickupLocation", ""),
+                                curr_offer.get("dropoffLocation") or curr_offer.get("deliveryLocation", "")
+                            )
+                            if not total_distance or total_distance.get("distance") is None:
+                                self.logger.error("Distance calculation failed, one of the locations might be invalid for load offer.")
+                                raise ValueError(
+                                    "Distance calculation failed, cannot proceed.")
 
-                    rate_calc = await calculator.calculate_bid(
-                        float(total_distance.get("distance") or 0),
-                        float(curr_offer.get("requestedRate") or 0)
-                    )
-                    min_rate = rate_calc.min_rate
-                    max_rate = rate_calc.max_rate
+                            self.logger.info(
+                                f"Distance: {total_distance.get('distance')} miles")
 
-                    self.logger.info(
-                        f"Calculated rates: ${min_rate} - ${max_rate}")
+                            rate_calc = await calculator.calculate_bid(
+                                float(total_distance.get("distance")),
+                                float(curr_offer.get("requestedRate") or 0)
+                            )
+                            min_rate = rate_calc.min_rate
+                            max_rate = rate_calc.max_rate
 
-                    # Update bid with rates
-                    await supertruck.update_bid(
-                        tenant_id=tenant_id,
-                        bid_id=currBid["id"],
-                        data={
-                            "minRate": min_rate,
-                            "maxRate": max_rate,
-                            "baseRate": curr_offer.get("requestedRate", min_rate)
-                        }
-                    )
+                            self.logger.info(
+                                f"Calculated rates: ${min_rate} - ${max_rate}")
 
+                            # Update bid with rates
+                            await supertruck.update_bid(
+                                tenant_id=tenant_id,
+                                bid_id=currBid["id"],
+                                data={
+                                    "minRate": min_rate,
+                                    "maxRate": max_rate,
+                                    "baseRate": curr_offer.get("requestedRate", min_rate)
+                                }
+                            )
+                        except Exception as e:
+                            self.logger.error(f"Rate calculation failed: {e}")
+                            # Fallback to existing rates if calculation fails
+                            min_rate = float(currBid.get("minRate") or 0)
+                            max_rate = float(currBid.get("maxRate") or 0)
+                            if not min_rate or not max_rate:
+                                self.logger.error("No valid rates found, cannot proceed with negotiation.")
+                                return
                 # ============================================================
                 # USE ORCHESTRATOR - Gets metadata from DB, returns new metadata
                 # ============================================================

@@ -119,7 +119,7 @@ class FreightBidCalculator:
         # Step 4: Round final bid
         min_rate = self._round_up(calculated_bid, round_to)
         max_rate = self._round_up(max_bid, round_to)
-
+        print(f"Initial calculated bid: ${calculated_bid:.2f}, rounded min_rate: ${min_rate:.2f}, max_rate: ${max_rate:.2f}")
         # Step 5: Adjust for base rate if provided
         if base_rate is not None:
             if base_rate > min_rate:
