@@ -247,13 +247,25 @@ class ChatHistoryPreprocessor:
     
     @staticmethod
     def validate_and_truncate(
-        chat_history: str, 
+        chat_history: str,
         max_length: int = ExtractorConfig.MAX_CHAT_HISTORY_LENGTH
     ) -> str:
         """
         Validate and truncate chat history to reasonable length.
         Prioritizes recent messages.
         """
+        # Handle list input (convert to string)
+        if isinstance(chat_history, list):
+            chat_history = "\n".join([
+                f"{item.get('direction', 'unknown')}: {item.get('message', str(item))}"
+                if isinstance(item, dict) else str(item)
+                for item in chat_history
+            ])
+
+        # Ensure chat_history is a string
+        if not isinstance(chat_history, str):
+            chat_history = str(chat_history)
+
         if not chat_history or not chat_history.strip():
             raise ValueError("Chat history is empty")
         
@@ -549,6 +561,7 @@ class MultiIntentExtractor:
                     reasoning="Intent extraction failed, manual review required"
                 )
             ],
+            message_summary=f"Error during extraction: {error_type}",
             extraction_metadata={
                 "error": error_message,
                 "error_type": error_type,

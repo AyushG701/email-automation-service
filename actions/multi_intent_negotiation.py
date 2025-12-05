@@ -2,6 +2,7 @@ from services.multi_intent_orchestrator import MultiIntentOrchestrator
 from integration.supertruck import SuperTruck
 from integration.load_board import LoadBoard
 from constant.enum import BIDDING_TYPE
+from schemas.negotiation import NegotiationState, NegotiationStrategy
 import logging
 import re
 from datetime import datetime
@@ -15,7 +16,8 @@ load_board = LoadBoard()
 class MultiIntentNegotiationAction:
     def __init__(self, state=None):
         self.logger = logging.getLogger(__name__)
-        self.orchestrator = MultiIntentOrchestrator(state)
+        self.state = state
+        # Don't initialize orchestrator here - we'll create it per negotiation with proper state
 
     async def find_bid(self, arg0: dict):
         try:
@@ -63,29 +65,73 @@ class MultiIntentNegotiationAction:
                 })
                 return
 
-            result = self.orchestrator.process_message(broker_message=latest, negotiation_history=conversation_history, load_offer=curr_offer, pricing={"min_price": currBid.get("minRate", 0), "max_price": currBid.get("maxRate", 0)})
+            # Initialize negotiation state
+            negotiation_state = NegotiationState(
+                load_offer_id=currBid["entityId"],
+                thread_id=thread_id,
+                is_negotiation_active=True,
+                negotiation_round=len([msg for msg in conversation_history if msg.get("direction") == "outgoing"]),
+                initial_broker_price=currBid.get("baseRate"),
+                last_broker_price=currBid.get("baseRate"),
+                strategy=NegotiationStrategy(
+                    min_price=currBid.get("minRate", 4000),
+                    max_price=currBid.get("maxRate", 6000)
+                )
+            )
 
+            # Initialize orchestrator with proper state and carrier info
+            orchestrator = MultiIntentOrchestrator(state=negotiation_state, carrier_info=carrier)
+
+            # Convert conversation_history list to string format
+            chat_history_str = "\n".join([
+                f"{msg.get('direction', 'unknown')}: {msg.get('message', '')}"
+                for msg in conversation_history
+            ]) if conversation_history else ""
+
+            # Append the latest message
+            full_chat_history = f"{chat_history_str}\n\nBroker: {latest}".strip()
+
+            # Process the email and get updated state
+            result_state = orchestrator.process_email(email_body=latest, chat_history=full_chat_history)
+
+            # Log incoming negotiation
             await supertruck.negotiate(tenant_id=tenant_id, data={
-                "rate": result.get("extractedPrice"),
+                "rate": result_state.last_broker_price or currBid.get("baseRate"),
                 "negotiationDirection": "incoming",
                 "bidId": currBid["id"],
                 "negotiationRawEmail": latest,
                 "messageId": message_id,
-                "metadata": result.get("metadata", {})
+                "metadata": {
+                    "negotiation_round": result_state.negotiation_round,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
             })
 
-            if result.get("status") == "accepted":
+            # Determine negotiation status
+            status = "active"
+            if not result_state.is_negotiation_active:
+                # Check if it was accepted or rejected based on response
+                if result_state.suggested_response and "accept" in result_state.suggested_response.lower():
+                    status = "accepted"
+                else:
+                    status = "rejected"
+
+            if status == "accepted":
                 await supertruck.update_bid(tenant_id=tenant_id, bid_id=currBid["id"], data={"isAcceptedByBroker": True, "status": "accepted"})
-            elif result.get("status") == "rejected":
+            elif status == "rejected":
                 await supertruck.update_bid(tenant_id=tenant_id, bid_id=currBid["id"], data={"isAcceptedByBroker": False, "status": "rejected"})
 
-            if result.get("response"):
+            # Send outgoing response if needed
+            if result_state.response_needed and result_state.suggested_response:
                 await supertruck.negotiate(tenant_id=tenant_id, data={
-                    "rate": result.get("proposedPrice"),
+                    "rate": result_state.last_supertruck_price or currBid.get("baseRate"),
                     "negotiationDirection": "outgoing",
                     "bidId": currBid["id"],
-                    "negotiationRawEmail": result.get("response"),
-                    "metadata": result.get("metadata", {})
+                    "negotiationRawEmail": result_state.suggested_response,
+                    "metadata": {
+                        "negotiation_round": result_state.negotiation_round,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
                 })
 
             self.logger.info("=== Multi-Intent Negotiation Completed ===")
